@@ -114,14 +114,24 @@ public class InputControlsFragment extends Fragment {
             }
         });
 
+        CheckBox cbDisconnectKeyBoundControllers = view.findViewById(R.id.CBDisconnectKeyBoundControllers);
+        cbDisconnectKeyBoundControllers.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (currentProfile != null) {
+                currentProfile.setDisconnectKeyBoundControllers(isChecked);
+                currentProfile.save();
+            }
+        });
+
         updateLayout = () -> {
             if (currentProfile != null) {
                 sbCursorSpeed.setValue(currentProfile.getCursorSpeed() * 100);
                 cbDisableMouseInput.setChecked(currentProfile.isDisableMouseInput());
+                cbDisconnectKeyBoundControllers.setChecked(currentProfile.isDisconnectKeyBoundControllers());
             }
             else {
                 sbCursorSpeed.setValue(100);
                 cbDisableMouseInput.setChecked(false);
+                cbDisconnectKeyBoundControllers.setChecked(false);
             }
             loadExternalControllers(view);
         };
