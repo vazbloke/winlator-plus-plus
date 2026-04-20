@@ -116,7 +116,7 @@ public class SettingsFragment extends Fragment {
         loadMIDIInputDeviceSpinner(sMIDIInputDevice, midiInputDevice);
 
         final CheckBox cbEnableHighQualityMIDI = view.findViewById(R.id.CBEnableHighQualityMIDI);
-        cbEnableHighQualityMIDI.setChecked(preferences.getBoolean("enable_high_quality_midi", true));
+        cbEnableHighQualityMIDI.setChecked(preferences.getBoolean("enable_high_quality_midi", false));
 
         final Spinner sBox64Version = view.findViewById(R.id.SBox64Version);
         String box64Version = preferences.getString("box64_version", null);

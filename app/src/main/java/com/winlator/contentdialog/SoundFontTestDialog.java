@@ -5,6 +5,8 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
+import android.content.SharedPreferences;
+import androidx.preference.PreferenceManager;
 
 import com.winlator.R;
 import com.winlator.core.GeneralComponents;
@@ -19,8 +21,11 @@ public class SoundFontTestDialog extends ContentDialog {
 
         String soundfontPath = GeneralComponents.getDefinitivePath(GeneralComponents.Type.SOUNDFONT, context, soundfont);
 
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        boolean highQualityMIDI = preferences.getBoolean("enable_high_quality_midi", false);
+
         final MIDIHandler midiHandler = new MIDIHandler(null);
-        midiHandler.init();
+        midiHandler.init(highQualityMIDI);
         midiHandler.loadSoundFont(soundfontPath);
 
         int[] channel = {0};

@@ -52,7 +52,7 @@ public class ShortcutsFragment extends BaseFileManagerFragment<Shortcut> {
     }
 
     @Override
-    public void onCreateOptionsMenu(Menu menu, MenuInflater menuInflater) {
+    public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater menuInflater) {
         menuInflater.inflate(R.menu.shortcuts_menu, menu);
         refreshViewStyleMenuItem(menu.findItem(R.id.menu_item_view_style));
     }
@@ -191,8 +191,10 @@ public class ShortcutsFragment extends BaseFileManagerFragment<Shortcut> {
             refreshContent();
 
             ActionBar actionBar = activity.getSupportActionBar();
-            actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_back);
-            actionBar.setTitle(shortcut.name);
+            if (actionBar != null) {
+                actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_back);
+                actionBar.setTitle(shortcut.name);
+            }
         }
         else {
             Intent intent = new Intent(activity, XServerDisplayActivity.class);
@@ -201,5 +203,94 @@ public class ShortcutsFragment extends BaseFileManagerFragment<Shortcut> {
             activity.startActivity(intent);
         }
     }
+
+    @Override
+    protected String getHomeTitle() {
+        return getString(R.string.shortcuts);
+    }
+
+    private class ShortcutsAdapter extends RecyclerView.Adapter<ShortcutsAdapter.ViewHolder> {
+        private final List<Shortcut> data;
+
+        private class ViewHolder extends RecyclerView.ViewHolder {
+            private final ImageView imageView;
+            private final TextView title;
+            private final View menuButton;
+
+            private ViewHolder(View view) {
+                super(view);
+                this.imageView = view.findViewById(R.id.ImageView);
+                this.title = view.findViewById(R.id.TVTitle);
+                this.menuButton = view.findViewById(R.id.BTMenu);
+            }
+        }
+
+        public ShortcutsAdapter(List<Shortcut> data) {
+            this.data = data;
+        }
+
+        @NonNull
+        @Override
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            int resource = viewStyle == ViewStyle.LIST ? R.layout.file_list_item : R.layout.file_grid_item;
+            return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(resource, parent, false));
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+            final Shortcut item = data.get(position);
+            if (item.file.isDirectory()) {
+                holder.imageView.setImageResource(R.drawable.container_folder);
+            }
+            else {
+                if (item.icon != null) {
+                    holder.imageView.setImageBitmap(item.icon);
+                }
+                else holder.imageView.setImageResource(R.drawable.container_file_window);
+            }
+            holder.title.setText(item.name);
+            holder.itemView.setOnClickListener((v) -> runFromShortcut(item));
+            holder.menuButton.setOnClickListener((v) -> showListItemMenu(v, item));
+        }
+
+        @Override
+        public int getItemCount() {
+            return data.size();
+        }
+
+        private void showListItemMenu(View anchorView, Shortcut shortcut) {
+            PopupMenu listItemMenu = new PopupMenu(getContext(), anchorView);
+            listItemMenu.inflate(R.menu.file_manager_popup_menu);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) listItemMenu.setForceShowIcon(true);
+
+            Menu menu = listItemMenu.getMenu();
+            menu.findItem(R.id.menu_item_copy).setVisible(false);
+            menu.findItem(R.id.menu_item_cut).setVisible(!shortcut.file.isDirectory());
+            menu.findItem(R.id.menu_item_rename).setVisible(false);
+            menu.findItem(R.id.menu_item_add_favorite).setVisible(false);
+            menu.findItem(R.id.menu_item_info).setVisible(false);
+            menu.findItem(R.id.menu_item_export_to_frontend).setVisible(!shortcut.file.isDirectory());
+
+            listItemMenu.setOnMenuItemClickListener((menuItem) -> {
+                int itemId = menuItem.getItemId();
+                if (itemId == R.id.menu_item_settings) {
+                    (new ShortcutSettingsDialog(ShortcutsFragment.this, shortcut)).show();
+                }
+                else if (itemId == R.id.menu_item_cut) {
+                    instantiateClipboard(shortcut, true);
+                }
+                else if (itemId == R.id.menu_item_remove) {
+                    ContentDialog.confirm(getContext(), R.string.do_you_want_to_remove_this_file, () -> {
+                        shortcut.remove();
+                        refreshContent();
+                    });
+                }
+                else if (itemId == R.id.menu_item_export_to_frontend) {
+                    exportShortcutToFrontend(shortcut);
+                }
+                return true;
+            });
+            listItemMenu.show();
+        }
     }
 }

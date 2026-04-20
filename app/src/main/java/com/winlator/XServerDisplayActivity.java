@@ -649,9 +649,13 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             ArrayList<String> profileItems = new ArrayList<>();
             int selectedPosition = 0;
             profileItems.add("-- "+getString(R.string.disabled)+" --");
+
+            ControlsProfile currentProfile = inputControlsView.getProfile();
+            int currentProfileId = currentProfile != null ? currentProfile.id : 0;
+
             for (int i = 0; i < profiles.size(); i++) {
                 ControlsProfile profile = profiles.get(i);
-                if (profile == inputControlsView.getProfile()) selectedPosition = i + 1;
+                if (profile.id == currentProfileId) selectedPosition = i + 1;
                 profileItems.add(profile.getName());
             }
 
@@ -672,8 +676,18 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             intent.putExtra("edit_input_controls", true);
             intent.putExtra("selected_profile_id", position > 0 ? inputControlsManager.getProfiles().get(position - 1).id : 0);
             editInputControlsCallback = () -> {
-                hideInputControls();
+                ControlsProfile currentProfile = inputControlsView.getProfile();
+                int currentProfileId = currentProfile != null ? currentProfile.id : 0;
                 inputControlsManager.loadProfiles(true);
+
+                if (currentProfileId > 0) {
+                    ControlsProfile newProfile = inputControlsManager.getProfile(currentProfileId);
+                    if (newProfile != null) {
+                        showInputControls(newProfile);
+                    }
+                    else hideInputControls();
+                }
+
                 loadProfileSpinner.run();
             };
             startActivityForResult(intent, MainActivity.EDIT_INPUT_CONTROLS_REQUEST_CODE);
