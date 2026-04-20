@@ -58,6 +58,7 @@ static MIDIHandler* MIDIHandler_allocate() {
 
 static void MIDIHandler_destroy(MIDIHandler* midiHandler) {
     if (!midiHandler) return;
+    for (int i = 0; i < 16; i++) fluid_synth_all_sounds_off(midiHandler->synth, i);
     if (midiHandler->soundfontId != -1) fluid_synth_sfunload(midiHandler->synth, midiHandler->soundfontId, 1);
     delete_fluid_audio_driver(midiHandler->driver);
     delete_fluid_synth(midiHandler->synth);
