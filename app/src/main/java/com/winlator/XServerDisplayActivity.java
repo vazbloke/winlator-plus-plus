@@ -818,17 +818,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
-        if (preferences.getBoolean("ignore_controller_input", false) && com.winlator.inputcontrols.ExternalController.isGameController(event.getDevice())) {
-            return true;
-        }
         return !winHandler.onGenericMotionEvent(event) && !touchpadView.onExternalMouseEvent(event) && super.dispatchGenericMotionEvent(event);
     }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (preferences.getBoolean("ignore_controller_input", false) && ExternalController.isGameController(event.getDevice())) {
-            return true;
-        }
         return (!inputControlsView.onKeyEvent(event) && !winHandler.onKeyEvent(event) && xServer.keyboard.onKeyEvent(event)) ||
                (!ExternalController.isGameController(event.getDevice()) && super.dispatchKeyEvent(event));
     }

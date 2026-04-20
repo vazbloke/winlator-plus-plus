@@ -185,20 +185,6 @@
                         android:text="@string/show_touch_controls_by_default_description"
                         android:textSize="12sp"
                         android:layout_marginLeft="32dp" />
-
-                    <CheckBox
-                        android:id="@+id/CBIgnoreControllerInput"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/ignore_controller_input_in_android_ui"
-                        android:layout_marginTop="8dp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/ignore_controller_input_in_android_ui_description"
-                        android:textSize="12sp"
-                        android:layout_marginLeft="32dp" />
                 </LinearLayout>
 
                 <TextView

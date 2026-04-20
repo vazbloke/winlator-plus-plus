@@ -266,19 +266,4 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         currentFragment = fragment;
     }
 
-    @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        if (preferences.getBoolean("ignore_controller_input", false) && com.winlator.inputcontrols.ExternalController.isGameController(event.getDevice())) {
-            return true;
-        }
-        return super.dispatchKeyEvent(event);
-    }
-
-    @Override
-    public boolean dispatchGenericMotionEvent(android.view.MotionEvent event) {
-        if (preferences.getBoolean("ignore_controller_input", false) && com.winlator.inputcontrols.ExternalController.isGameController(event.getDevice())) {
-            return true;
-        }
-        return super.dispatchGenericMotionEvent(event);
-    }
 }

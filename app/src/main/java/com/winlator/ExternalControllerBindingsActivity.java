@@ -135,25 +135,52 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
         updateControllerBinding(keyCode, binding);
     }
 
-    @Override
+@Override
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
+        // 1. Process the binding if it matches the selected controller
         if (event.getDeviceId() == controller.getDeviceId() && controller.updateStateFromMotionEvent(event)) {
             GamepadState state = controller.getGamepadState();
             if (state.isPressed(ExternalController.IDX_BUTTON_L2)) updateControllerBinding(KeyEvent.KEYCODE_BUTTON_L2, Binding.NONE);
             if (state.isPressed(ExternalController.IDX_BUTTON_R2)) updateControllerBinding(KeyEvent.KEYCODE_BUTTON_R2, Binding.NONE);
             processJoystickInput();
+            return true; 
+        }
+
+        // 2. Catch-all: If it's a gamepad event (even from a mismatched device ID), swallow it 
+        // so it never scrolls the RecyclerView.
+        if (isGamepadEvent(event)) {
             return true;
         }
+
         return super.dispatchGenericMotionEvent(event);
     }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event.getDeviceId() == controller.getDeviceId() && event.getRepeatCount() == 0) {
-            if (event.getAction() == KeyEvent.ACTION_DOWN) updateControllerBinding(event.getKeyCode(), Binding.NONE);
+        // 1. Process the binding if it matches the selected controller
+        if (event.getDeviceId() == controller.getDeviceId()) {
+            // Only trigger the actual bind on the initial press (repeatCount == 0)
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                updateControllerBinding(event.getKeyCode(), Binding.NONE);
+            }
+            // ALWAYS consume the event so repeats or ACTION_UP don't trigger UI clicks
+            return true; 
+        }
+
+        // 2. Catch-all: Swallow any other gamepad keys
+        if (isGamepadEvent(event)) {
             return true;
         }
-        else return super.dispatchKeyEvent(event);
+
+        return super.dispatchKeyEvent(event);
+    }
+
+    // Add the helper method
+    private boolean isGamepadEvent(InputEvent event) {
+        int source = event.getSource();
+        return (source & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
+               (source & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK ||
+               (source & InputDevice.SOURCE_DPAD) == InputDevice.SOURCE_DPAD;
     }
 
     @Override
