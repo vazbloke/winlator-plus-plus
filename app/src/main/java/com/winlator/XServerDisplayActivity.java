@@ -594,6 +594,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         rootView.addView(touchpadView);
 
         inputControlsView = new InputControlsView(this);
+        inputControlsView.setShowTouchscreenControls(preferences.getBoolean("show_touch_controls", true));
         inputControlsView.setOverlayOpacity(preferences.getFloat("overlay_opacity", InputControlsView.DEFAULT_OVERLAY_OPACITY));
         inputControlsView.setTouchpadView(touchpadView);
         inputControlsView.setXServer(xServer);
@@ -695,7 +696,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     }
 
     private void hideInputControls() {
-        inputControlsView.setShowTouchscreenControls(true);
+        inputControlsView.setShowTouchscreenControls(preferences.getBoolean("show_touch_controls", true));
         inputControlsView.setVisibility(View.GONE);
         inputControlsView.setProfile(null);
 

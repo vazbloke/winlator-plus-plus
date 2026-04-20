@@ -348,4 +348,6 @@
     <string name="ddraw_wrapper" translatable="false">DDraw Wrapper</string>
     <string name="renderer">Renderer</string>
     <string name="disconnect_key_bound_controllers">Disconnect key-bound controllers from the container</string>
+    <string name="show_touch_controls_by_default">Show touch screen controls by default</string>
+    <string name="show_touch_controls_by_default_description">If unchecked, touch controls still function while visually hidden</string>
 </resources>

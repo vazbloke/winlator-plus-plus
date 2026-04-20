@@ -170,6 +170,21 @@
                                 android:src="@drawable/icon_reset" />
                         </LinearLayout>
                     </LinearLayout>
+
+                    <View style="@style/FieldSeparator" />
+
+                    <CheckBox
+                        android:id="@+id/CBShowTouchControls"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/show_touch_controls_by_default" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/show_touch_controls_by_default_description"
+                        android:textSize="12sp"
+                        android:layout_marginLeft="32dp" />
                 </LinearLayout>
 
                 <TextView

@@ -169,6 +169,9 @@ public class SettingsFragment extends Fragment {
         final Spinner sPreferredInputApi = view.findViewById(R.id.SPreferredInputApi);
         sPreferredInputApi.setSelection(preferences.getInt("preferred_input_api", GamepadHandler.PreferredInputApi.AUTO.ordinal()));
 
+        final CheckBox cbShowTouchControls = view.findViewById(R.id.CBShowTouchControls);
+        cbShowTouchControls.setChecked(preferences.getBoolean("show_touch_controls", true));
+
         final Spinner sWineVersion = view.findViewById(R.id.SWineVersion);
         loadWineVersionSpinner(view, sWineVersion);
 
@@ -202,6 +205,7 @@ public class SettingsFragment extends Fragment {
             editor.putInt("preferred_input_api", sPreferredInputApi.getSelectedItemPosition());
             editor.putBoolean("open_android_browser_from_wine", cbOpenAndroidBrowserFromWine.isChecked());
             editor.putBoolean("use_android_clipboard_on_wine", cbUseAndroidClipboardOnWine.isChecked());
+            editor.putBoolean("show_touch_controls", cbShowTouchControls.isChecked());
             putGamepadPlayerConfigs(view, editor);
 
             int newAppThemeId = rgAppTheme.getCheckedRadioButtonId();
