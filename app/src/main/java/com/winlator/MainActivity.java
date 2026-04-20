@@ -26,11 +26,17 @@ import androidx.preference.PreferenceManager;
 
 import com.google.android.material.navigation.NavigationView;
 import com.winlator.contentdialog.AboutDialog;
+import com.winlator.container.Container;
+import com.winlator.container.ContainerManager;
+import com.winlator.container.Shortcut;
 import com.winlator.core.AppUtils;
 import com.winlator.core.Callback;
+import com.winlator.core.FileUtils;
 import com.winlator.core.LocaleHelper;
 import com.winlator.core.PreloaderDialog;
 import com.winlator.xenvironment.RootFSInstaller;
+
+import java.io.File;
 
 public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
     public static final boolean DEBUG_MODE = false; // FIXME change to false
@@ -85,6 +91,31 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             String startPath = intent.getStringExtra("start_path");
             if (containerId > 0 && startPath != null) {
                 showFragment(new ContainerFileManagerFragment(containerId, startPath));
+            }
+
+            String shortcutPath = intent.getStringExtra("shortcut_path");
+            if (shortcutPath != null && !shortcutPath.isEmpty()) {
+                File file = new File(shortcutPath);
+                if (file.exists()) {
+                    int containerIdFromShortcut = -1;
+                    for (String line : FileUtils.readLines(file, true)) {
+                        if (line.startsWith("ContainerId=")) {
+                            try {
+                                String idValue = line.substring(line.indexOf("=") + 1).trim();
+                                containerIdFromShortcut = Integer.parseInt(idValue);
+                            } catch (Exception e) {}
+                            break;
+                        }
+                    }
+
+                    if (containerIdFromShortcut != -1) {
+                        Intent xServerIntent = new Intent(this, XServerDisplayActivity.class);
+                        xServerIntent.putExtra("container_id", containerIdFromShortcut);
+                        xServerIntent.putExtra("shortcut_path", file.getPath());
+                        xServerIntent.putExtra("from_shortcut", true);
+                        startActivity(xServerIntent);
+                    }
+                }
             }
         }
     }

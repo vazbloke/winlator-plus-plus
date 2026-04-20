@@ -266,6 +266,19 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
             @Override
             public void onUnmapWindow(Window window) {
+                if (getIntent().getBooleanExtra("from_shortcut", false) && window.isApplicationWindow()) {
+                    boolean hasAppWindow = false;
+                    synchronized (xServer.windowManager.windows) {
+                        for (int i = 0; i < xServer.windowManager.windows.size(); i++) {
+                            Window w = xServer.windowManager.windows.valueAt(i);
+                            if (w != window && w.isApplicationWindow()) {
+                                hasAppWindow = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!hasAppWindow) exit();
+                }
                 changeFrameRatingVisibility(window, false);
             }
         });
@@ -424,6 +437,11 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (environment != null) environment.stopEnvironmentComponents();
 
         Intent intent = getIntent();
+        if (intent.getBooleanExtra("from_shortcut", false)) {
+            finish();
+            return;
+        }
+
         if (intent.hasExtra("exec_path")) {
             AppUtils.RestartApplicationOptions options = new AppUtils.RestartApplicationOptions();
             options.containerId = container.id;
