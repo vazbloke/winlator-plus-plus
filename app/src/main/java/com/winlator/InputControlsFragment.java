@@ -55,6 +55,10 @@ public class InputControlsFragment extends Fragment {
     private Callback<ControlsProfile> importProfileCallback;
     private final int selectedProfileId;
 
+    public InputControlsFragment() {
+        this.selectedProfileId = 0;
+    }
+
     public InputControlsFragment(int selectedProfileId) {
         this.selectedProfileId = selectedProfileId;
     }

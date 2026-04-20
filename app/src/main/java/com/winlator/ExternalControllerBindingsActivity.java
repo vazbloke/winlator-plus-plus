@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.view.InputDevice;
+import android.view.InputEvent;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
@@ -36,12 +38,35 @@ import com.winlator.inputcontrols.GamepadState;
 import com.winlator.inputcontrols.InputControlsManager;
 import com.winlator.math.Mathf;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class ExternalControllerBindingsActivity extends AppCompatActivity {
     private TextView emptyTextView;
     private ControlsProfile profile;
     private ExternalController controller;
     private RecyclerView recyclerView;
     private ControllerBindingsAdapter adapter;
+
+    private int lastProcessedJoystickCode = KeyEvent.KEYCODE_UNKNOWN;
+
+    private static final float JOYSTICK_VALUE_THRESHOLD = 0.3f;
+
+    private static final Map<Integer, Binding> axisBindings = new HashMap<>();
+    static {
+        axisBindings.put((int)ExternalControllerBinding.AXIS_X_NEGATIVE, Binding.MOUSE_MOVE_LEFT);
+        axisBindings.put((int)ExternalControllerBinding.AXIS_X_POSITIVE, Binding.MOUSE_MOVE_RIGHT);
+        axisBindings.put((int)ExternalControllerBinding.AXIS_Y_NEGATIVE, Binding.MOUSE_MOVE_DOWN);
+        axisBindings.put((int)ExternalControllerBinding.AXIS_Y_POSITIVE, Binding.MOUSE_MOVE_UP);
+        axisBindings.put((int)ExternalControllerBinding.AXIS_Z_NEGATIVE, Binding.MOUSE_MOVE_LEFT);
+        axisBindings.put((int)ExternalControllerBinding.AXIS_Z_POSITIVE, Binding.MOUSE_MOVE_RIGHT);
+        axisBindings.put((int)ExternalControllerBinding.AXIS_RZ_NEGATIVE, Binding.MOUSE_MOVE_DOWN);
+        axisBindings.put((int)ExternalControllerBinding.AXIS_RZ_POSITIVE, Binding.MOUSE_MOVE_UP);
+        axisBindings.put(KeyEvent.KEYCODE_DPAD_LEFT, Binding.KEY_A);
+        axisBindings.put(KeyEvent.KEYCODE_DPAD_RIGHT, Binding.KEY_D);
+        axisBindings.put(KeyEvent.KEYCODE_DPAD_UP, Binding.KEY_W);
+        axisBindings.put(KeyEvent.KEYCODE_DPAD_DOWN, Binding.KEY_S);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,54 +126,78 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
             position = controller.getPosition(controllerBinding);
         }
         else animateItemView(position = controller.getPosition(controllerBinding));
-        recyclerView.scrollToPosition(position);
+        // recyclerView.scrollToPosition(position);
     }
 
     private void processJoystickInput() {
-        int keyCode = KeyEvent.KEYCODE_UNKNOWN;
-        Binding binding = Binding.NONE;
         final int[] axes = {MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ, MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y};
         GamepadState state = controller.getGamepadState();
         final float[] values = {state.thumbLX, state.thumbLY, state.thumbRX, state.thumbRY, state.getDPadX(), state.getDPadY()};
 
-        byte sign;
-        for (int i = 0; i < axes.length; i++) {
-            if ((sign = Mathf.sign(values[i])) != 0) {
-                if (axes[i] == MotionEvent.AXIS_X || axes[i] == MotionEvent.AXIS_Z) {
-                    binding = sign > 0 ? Binding.MOUSE_MOVE_RIGHT : Binding.MOUSE_MOVE_LEFT;
-                }
-                else if (axes[i] == MotionEvent.AXIS_Y || axes[i] == MotionEvent.AXIS_RZ) {
-                    binding = sign > 0 ? Binding.MOUSE_MOVE_DOWN : Binding.MOUSE_MOVE_UP;
-                }
-                else if (axes[i] == MotionEvent.AXIS_HAT_X) {
-                    binding = sign > 0 ? Binding.KEY_D : Binding.KEY_A;
-                }
-                else if (axes[i] == MotionEvent.AXIS_HAT_Y) {
-                    binding = sign > 0 ? Binding.KEY_S : Binding.KEY_W;
-                }
+        int finalIndex = getIndexOfMaxAbsValue(values);
+        float finalValue = values[finalIndex];
 
-                keyCode = ExternalControllerBinding.getKeyCodeForAxis(axes[i], sign);
-                break;
+        if (Math.abs(finalValue) < JOYSTICK_VALUE_THRESHOLD) return;
+
+        byte sign = Mathf.sign(finalValue);
+
+        int keyCode = ExternalControllerBinding.getKeyCodeForAxis(axes[finalIndex], sign);
+        Binding binding = axisBindings.getOrDefault(keyCode, Binding.NONE);
+
+        // THE DEBOUNCE: Only update the UI if it's a NEW directional movement.
+        if (keyCode != KeyEvent.KEYCODE_UNKNOWN && keyCode != lastProcessedJoystickCode) {
+            updateControllerBinding(keyCode, binding);
+            lastProcessedJoystickCode = keyCode; // Lock it so it doesn't fire again
+        }
+        // RESET THE LOCK when the driver reports the stick has returned to center (0).
+        else if (keyCode == KeyEvent.KEYCODE_UNKNOWN) {
+            lastProcessedJoystickCode = KeyEvent.KEYCODE_UNKNOWN;
+        }
+    }
+
+    public static int getIndexOfMaxAbsValue(float[] array) {
+        // Handle edge cases: null or empty array
+        if (array == null || array.length == 0) {
+            throw new IllegalArgumentException("Array must not be null or empty");
+        }
+
+        int maxIndex = 0;
+        float maxAbsValue = Math.abs(array[0]);
+
+        // Iterate through the array starting from the second element
+        for (int i = 1; i < array.length; i++) {
+            float currentAbsValue = Math.abs(array[i]);
+
+            // If the current absolute value is strictly greater, update our trackers
+            if (currentAbsValue > maxAbsValue) {
+                maxAbsValue = currentAbsValue;
+                maxIndex = i;
             }
         }
 
-        updateControllerBinding(keyCode, binding);
+        return maxIndex;
     }
 
-@Override
+    @Override
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
-        // 1. Process the binding if it matches the selected controller
-        if (event.getDeviceId() == controller.getDeviceId() && controller.updateStateFromMotionEvent(event)) {
-            GamepadState state = controller.getGamepadState();
-            if (state.isPressed(ExternalController.IDX_BUTTON_L2)) updateControllerBinding(KeyEvent.KEYCODE_BUTTON_L2, Binding.NONE);
-            if (state.isPressed(ExternalController.IDX_BUTTON_R2)) updateControllerBinding(KeyEvent.KEYCODE_BUTTON_R2, Binding.NONE);
-            processJoystickInput();
-            return true; 
+        // Joysticks only fire ACTION_MOVE. We need to catch the push (>0) AND the release (0)
+        if (event.getAction() == MotionEvent.ACTION_MOVE) {
+            if (event.getDeviceId() == controller.getDeviceId() && controller.updateStateFromMotionEvent(event)) {
+                GamepadState state = controller.getGamepadState();
+
+                if (state.isPressed(ExternalController.IDX_BUTTON_L2)) updateControllerBinding(KeyEvent.KEYCODE_BUTTON_L2, Binding.NONE);
+                if (state.isPressed(ExternalController.IDX_BUTTON_R2)) updateControllerBinding(KeyEvent.KEYCODE_BUTTON_R2, Binding.NONE);
+
+                processJoystickInput();
+
+                // ALWAYS return true here. This consumes BOTH the joystick being pushed
+                // and the joystick returning to dead center, so the UI doesn't scroll.
+                return true;
+            }
         }
 
-        // 2. Catch-all: If it's a gamepad event (even from a mismatched device ID), swallow it 
-        // so it never scrolls the RecyclerView.
-        if (isGamepadEvent(event)) {
+        // Catch-all: Swallow any other gamepad motions or synthesized ghost scrolls
+        if (isGamepadEvent(event) || event.getAction() == MotionEvent.ACTION_SCROLL) {
             return true;
         }
 
@@ -157,22 +206,27 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // 1. Process the binding if it matches the selected controller
         if (event.getDeviceId() == controller.getDeviceId()) {
-            // Only trigger the actual bind on the initial press (repeatCount == 0)
+            // ONLY map the key to Winlator on the initial press (ACTION_DOWN)
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
                 updateControllerBinding(event.getKeyCode(), Binding.NONE);
             }
-            // ALWAYS consume the event so repeats or ACTION_UP don't trigger UI clicks
-            return true; 
-        }
 
-        // 2. Catch-all: Swallow any other gamepad keys
-        if (isGamepadEvent(event)) {
+            // CRITICAL: We return true for ALL actions (DOWN, UP, and MULTIPLE).
+            // If we don't consume the ACTION_UP, the Android RecyclerView registers a click!
             return true;
         }
 
-        return super.dispatchKeyEvent(event);
+        // The Brick Wall: Allow ONLY system keys to function normally
+        int code = event.getKeyCode();
+        if (code == KeyEvent.KEYCODE_BACK ||
+                code == KeyEvent.KEYCODE_VOLUME_UP ||
+                code == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            return super.dispatchKeyEvent(event);
+        }
+
+        // Destroy every other ghost key (Enter, D-pad, Space) that the OS might synthesize
+        return true;
     }
 
     // Add the helper method
