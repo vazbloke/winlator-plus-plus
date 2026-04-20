@@ -330,7 +330,8 @@ public class WinHandler {
                 if (midiHandler == null) midiHandler = new MIDIHandler(this);
                 if (isMidiOut) {
                     midiHandler.open(() -> {
-                        if (midiHandler.init()) {
+                        boolean highQuality = activity.getPreferences().getBoolean("enable_high_quality_midi", true);
+                        if (midiHandler.init(highQuality)) {
                             String soundfont = activity.getPreferences().getString("soundfont", DefaultVersion.SOUNDFONT);
                             midiHandler.loadSoundFont(GeneralComponents.getDefinitivePath(GeneralComponents.Type.SOUNDFONT, activity, soundfont));
                         }

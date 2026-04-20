@@ -5,7 +5,7 @@
 #include <android/log.h>
 #include <malloc.h>
 
-#define FLUIDSYNTH_SAMPLE_RATE 44100
+#define FLUIDSYNTH_SAMPLE_RATE 48000
 #define FLUIDSYNTH_LATENCY 40
 #define LATENCY_MILLIS_TO_BUFFER_SIZE(ms) (FLUIDSYNTH_SAMPLE_RATE * ms / 1000.0)
 
@@ -24,11 +24,14 @@ static void setAudioLatency(fluid_settings_t* settings, int ms) {
     fluid_settings_setint(settings, "audio.periods", 2);
 }
 
-static MIDIHandler* MIDIHandler_allocate() {
+static MIDIHandler* MIDIHandler_allocate(bool highQuality) {
     fluid_settings_t* settings = new_fluid_settings();
     if (!settings) return NULL;
     fluid_settings_setint(settings, "synth.cpu-cores", 4);
-    fluid_settings_setnum(settings, "synth.gain", 0.6f);
+    fluid_settings_setnum(settings, "synth.gain", 0.8f);
+    fluid_settings_setint(settings, "synth.polyphony", highQuality ? 256 : 64);
+    fluid_settings_setstr(settings, "synth.reverb.active", highQuality ? "yes" : "no");
+    fluid_settings_setstr(settings, "synth.chorus.active", highQuality ? "yes" : "no");
     fluid_settings_setstr(settings, "audio.oboe.performance-mode", "LowLatency");
     fluid_settings_setstr(settings, "audio.oboe.sharing-mode", "Exclusive");
     fluid_settings_setnum(settings, "synth.sample-rate", FLUIDSYNTH_SAMPLE_RATE);
@@ -40,6 +43,8 @@ static MIDIHandler* MIDIHandler_allocate() {
         delete_fluid_settings(settings);
         return NULL;
     }
+
+    fluid_synth_set_interp_method(synth, -1, highQuality ? FLUID_INTERP_4THORDER : FLUID_INTERP_LINEAR);
 
     fluid_audio_driver_t* driver = new_fluid_audio_driver(settings, synth);
     if (!driver) {
@@ -76,6 +81,11 @@ static void MIDIHandler_noteOff(MIDIHandler* midiHandler, int channel, int note)
     fluid_synth_noteoff(midiHandler->synth, channel, note);
 }
 
+static void MIDIHandler_systemReset(MIDIHandler* midiHandler) {
+    if (!midiHandler) return;
+    fluid_synth_system_reset(midiHandler->synth);
+}
+
 static void MIDIHandler_keyPressure(MIDIHandler* midiHandler, int channel, int key, int value) {
     if (!midiHandler) return;
     fluid_synth_key_pressure(midiHandler->synth, channel, key, value);
@@ -110,8 +120,8 @@ static void MIDIHandler_loadSoundFont(MIDIHandler* midiHandler, const char* path
 }
 
 JNIEXPORT jlong JNICALL
-Java_com_winlator_winhandler_MIDIHandler_nativeAllocate(JNIEnv *env, jobject obj) {
-    MIDIHandler* midiHandler = MIDIHandler_allocate();
+Java_com_winlator_winhandler_MIDIHandler_nativeAllocate(JNIEnv *env, jobject obj, jboolean highQuality) {
+    MIDIHandler* midiHandler = MIDIHandler_allocate(highQuality);
     return (jlong)midiHandler;
 }
 
@@ -162,4 +172,9 @@ JNIEXPORT void JNICALL
 Java_com_winlator_winhandler_MIDIHandler_keyPressure(JNIEnv *env, jobject obj, jlong nativePtr,
                                                      jint channel, jint key, jint value) {
     MIDIHandler_keyPressure((MIDIHandler*)nativePtr, channel, key, value);
+}
+
+JNIEXPORT void JNICALL
+Java_com_winlator_winhandler_MIDIHandler_systemReset(JNIEnv *env, jobject obj, jlong nativePtr) {
+    MIDIHandler_systemReset((MIDIHandler*)nativePtr);
 }

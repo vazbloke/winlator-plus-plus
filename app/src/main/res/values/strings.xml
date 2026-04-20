@@ -359,4 +359,5 @@
     <string name="frontend">Frontend</string>
     <string name="shortcut_export_path">Shortcut export path</string>
     <string name="shortcut_exported_to">Shortcut exported to</string>
+    <string name="enable_high_quality_midi">Enable high quality MIDI processing</string>
 </resources>
