@@ -61,6 +61,11 @@ public class SoundFontTestDialog extends ContentDialog {
             }
         });
 
+        setOnDismissListener((d) -> {
+            midiHandler.close();
+            midiHandler.destroy();
+        });
+
         findViewById(R.id.LLBottomBar).setVisibility(View.GONE);
     }
 }
