@@ -172,6 +172,9 @@ public class SettingsFragment extends Fragment {
         final CheckBox cbShowTouchControls = view.findViewById(R.id.CBShowTouchControls);
         cbShowTouchControls.setChecked(preferences.getBoolean("show_touch_controls", true));
 
+        final CheckBox cbIgnoreControllerInput = view.findViewById(R.id.CBIgnoreControllerInput);
+        cbIgnoreControllerInput.setChecked(preferences.getBoolean("ignore_controller_input", false));
+
         final TextView tvShortcutExportPath = view.findViewById(R.id.TVShortcutExportPath);
         String defaultShortcutExportPath = AppUtils.DIRECTORY_DOWNLOADS + "/Winlator/FrontendShortcuts";
         tvShortcutExportPath.setText(preferences.getString("shortcut_export_path", defaultShortcutExportPath));
@@ -223,6 +226,7 @@ public class SettingsFragment extends Fragment {
             editor.putBoolean("open_android_browser_from_wine", cbOpenAndroidBrowserFromWine.isChecked());
             editor.putBoolean("use_android_clipboard_on_wine", cbUseAndroidClipboardOnWine.isChecked());
             editor.putBoolean("show_touch_controls", cbShowTouchControls.isChecked());
+            editor.putBoolean("ignore_controller_input", cbIgnoreControllerInput.isChecked());
             editor.putString("shortcut_export_path", tvShortcutExportPath.getText().toString());
             putGamepadPlayerConfigs(view, editor);
 
