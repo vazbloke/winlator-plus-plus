@@ -111,179 +111,95 @@ public class ShortcutsFragment extends BaseFileManagerFragment<Shortcut> {
             createFolder();
             return true;
         }
+        else if (itemId == R.id.menu_item_export_all) {
+            exportAllShortcutsToFrontend();
+            return true;
+        }
         else return super.onOptionsItemSelected(menuItem);
     }
 
-    @Override
-    protected String getHomeTitle() {
-        return getString(R.string.shortcuts);
+    private void exportAllShortcutsToFrontend() {
+        Context context = getContext();
+        ContentDialog.confirm(context, R.string.do_you_want_to_export_all_shortcuts_to_frontend, () -> {
+            ArrayList<Shortcut> allShortcuts = manager.loadShortcuts(null);
+            for (Shortcut shortcut : allShortcuts) {
+                if (!shortcut.file.isDirectory()) exportShortcutToFrontend(shortcut, false);
+            }
+            AppUtils.showToast(context, R.string.shortcuts_exported_successfully);
+        });
     }
 
-    private class ShortcutsAdapter extends RecyclerView.Adapter<ShortcutsAdapter.ViewHolder> {
-        private final List<Shortcut> data;
+    private void exportShortcutToFrontend(Shortcut shortcut) {
+        exportShortcutToFrontend(shortcut, true);
+    }
 
-        private class ViewHolder extends RecyclerView.ViewHolder {
-            private final ImageView runButton;
-            private final ImageView menuButton;
-            private final ImageView imageView;
-            private final TextView title;
-            private final TextView subtitle;
+    private void exportShortcutToFrontend(Shortcut shortcut, boolean showToast) {
+        Context context = getContext();
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        String exportPath = preferences.getString("shortcut_export_path", AppUtils.DIRECTORY_DOWNLOADS + "/Winlator/FrontendShortcuts");
+        File exportDir = new File(exportPath);
 
-            private ViewHolder(View view) {
-                super(view);
-                this.imageView = view.findViewById(R.id.ImageView);
-                this.title = view.findViewById(R.id.TVTitle);
-                this.subtitle = view.findViewById(R.id.TVSubtitle);
-                this.runButton = view.findViewById(R.id.BTRun);
-                this.menuButton = view.findViewById(R.id.BTMenu);
+        if (!exportDir.exists() && !exportDir.mkdirs()) return;
+
+        String fileName = shortcut.name + "-" + shortcut.container.id + ".desktop";
+        File exportFile = new File(exportDir, fileName);
+        List<String> lines = FileUtils.readLines(shortcut.file, true);
+        boolean extraDataFound = false;
+        int lastLineIndex = -1;
+
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i).trim();
+            if (line.equals("[Extra Data]")) {
+                extraDataFound = true;
+                lastLineIndex = i;
+            }
+            else if (extraDataFound && line.startsWith("[")) {
+                break;
+            }
+            else if (extraDataFound) {
+                lastLineIndex = i;
             }
         }
 
-        public ShortcutsAdapter(List<Shortcut> data) {
-            this.data = data;
+        if (!extraDataFound) {
+            lines.add("");
+            lines.add("[Extra Data]");
+            lines.add("ContainerId=" + shortcut.container.id);
         }
-
-        @NonNull
-        @Override
-        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            int resource = viewStyle == ViewStyle.LIST ? R.layout.file_list_item : R.layout.file_grid_item;
-            return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(resource, parent, false));
-        }
-
-        @Override
-        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-            final Shortcut item = data.get(position);
-
-            if (item.icon == null) {
-                int iconResId = item.file.isDirectory() ? R.drawable.container_folder : R.drawable.container_file_link;
-                holder.imageView.setImageResource(iconResId);
-            }
-            else holder.imageView.setImageBitmap(item.icon);
-
-            holder.title.setText(item.name);
-            holder.subtitle.setText(item.container.getName());
-
-            if (item.file.isDirectory()) {
-                holder.runButton.setImageResource(R.drawable.icon_open);
-            }
-            else holder.runButton.setImageResource(R.drawable.icon_run);
-
-            holder.imageView.setOnClickListener((v) -> runFromShortcut(item));
-            holder.runButton.setOnClickListener((v) -> runFromShortcut(item));
-            holder.menuButton.setOnClickListener((v) -> showListItemMenu(v, item));
-        }
-
-        @Override
-        public final int getItemCount() {
-            return data.size();
-        }
-
-        private void showListItemMenu(View anchorView, final Shortcut shortcut) {
-            final Context context = getContext();
-            PopupMenu listItemMenu = new PopupMenu(context, anchorView);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) listItemMenu.setForceShowIcon(true);
-
-            listItemMenu.inflate(R.menu.file_manager_popup_menu);
-
-            Menu menu = listItemMenu.getMenu();
-            menu.findItem(R.id.menu_item_rename).setVisible(false);
-            menu.findItem(R.id.menu_item_add_favorite).setVisible(false);
-            menu.findItem(R.id.menu_item_info).setVisible(false);
-
-            listItemMenu.setOnMenuItemClickListener((menuItem) -> {
-                int itemId = menuItem.getItemId();
-                switch (itemId) {
-                    case R.id.menu_item_settings:
-                        clearClipboard();
-                        (new ShortcutSettingsDialog(ShortcutsFragment.this, shortcut)).show();
-                        break;
-                    case R.id.menu_item_copy:
-                    case R.id.menu_item_cut:
-                        instantiateClipboard(shortcut, itemId == R.id.menu_item_cut);
-                        break;
-                    case R.id.menu_item_remove:
-                        clearClipboard();
-                        ContentDialog.confirm(context, R.string.do_you_want_to_remove_this_file, () -> {
-                            shortcut.remove();
-                            refreshContent();
-                        });
-                        break;
-                    case R.id.menu_item_export_to_frontend:
-                        exportShortcutToFrontend(shortcut);
-                        break;
-                }
-                return true;
-            });
-            listItemMenu.show();
-        }
-
-        private void exportShortcutToFrontend(Shortcut shortcut) {
-            Context context = getContext();
-            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-            String exportPath = preferences.getString("shortcut_export_path", AppUtils.DIRECTORY_DOWNLOADS + "/Winlator/FrontendShortcuts");
-            File exportDir = new File(exportPath);
-
-            if (!exportDir.exists() && !exportDir.mkdirs()) return;
-
-            String fileName = shortcut.name + "-" + shortcut.container.id + ".desktop";
-            File exportFile = new File(exportDir, fileName);
-            List<String> lines = FileUtils.readLines(shortcut.file, true);
-            boolean extraDataFound = false;
-            int lastLineIndex = -1;
-
-            for (int i = 0; i < lines.size(); i++) {
-                String line = lines.get(i).trim();
-                if (line.equals("[Extra Data]")) {
-                    extraDataFound = true;
-                    lastLineIndex = i;
-                }
-                else if (extraDataFound && line.startsWith("[")) {
+        else {
+            boolean containerIdFound = false;
+            for (int i = lines.indexOf("[Extra Data]") + 1; i <= lastLineIndex; i++) {
+                if (lines.get(i).startsWith("ContainerId=")) {
+                    lines.set(i, "ContainerId=" + shortcut.container.id);
+                    containerIdFound = true;
                     break;
                 }
-                else if (extraDataFound) {
-                    lastLineIndex = i;
-                }
             }
-
-            if (!extraDataFound) {
-                lines.add("");
-                lines.add("[Extra Data]");
-                lines.add("ContainerId=" + shortcut.container.id);
-            }
-            else {
-                boolean containerIdFound = false;
-                for (int i = lines.indexOf("[Extra Data]") + 1; i <= lastLineIndex; i++) {
-                    if (lines.get(i).startsWith("ContainerId=")) {
-                        lines.set(i, "ContainerId=" + shortcut.container.id);
-                        containerIdFound = true;
-                        break;
-                    }
-                }
-                if (!containerIdFound) lines.add(lastLineIndex + 1, "ContainerId=" + shortcut.container.id);
-            }
-
-            if (FileUtils.writeLines(exportFile, lines)) {
-                AppUtils.showToast(context, getString(R.string.shortcut_exported_to) + ": " + exportFile.getPath());
-            }
+            if (!containerIdFound) lines.add(lastLineIndex + 1, "ContainerId=" + shortcut.container.id);
         }
 
-        private void runFromShortcut(Shortcut shortcut) {
-            AppCompatActivity activity = (AppCompatActivity)getActivity();
-
-            if (shortcut.file.isDirectory()) {
-                folderStack.push(shortcut);
-                refreshContent();
-
-                ActionBar actionBar = activity.getSupportActionBar();
-                actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_back);
-                actionBar.setTitle(shortcut.name);
-            }
-            else {
-                Intent intent = new Intent(activity, XServerDisplayActivity.class);
-                intent.putExtra("container_id", shortcut.container.id);
-                intent.putExtra("shortcut_path", shortcut.file.getPath());
-                activity.startActivity(intent);
-            }
+        if (FileUtils.writeLines(exportFile, lines)) {
+            if (showToast) AppUtils.showToast(context, getString(R.string.shortcut_exported_to) + ": " + exportFile.getPath());
         }
+    }
+
+    private void runFromShortcut(Shortcut shortcut) {
+        AppCompatActivity activity = (AppCompatActivity)getActivity();
+
+        if (shortcut.file.isDirectory()) {
+            folderStack.push(shortcut);
+            refreshContent();
+
+            ActionBar actionBar = activity.getSupportActionBar();
+            actionBar.setHomeAsUpIndicator(R.drawable.icon_action_bar_back);
+            actionBar.setTitle(shortcut.name);
+        }
+        else {
+            Intent intent = new Intent(activity, XServerDisplayActivity.class);
+            intent.putExtra("container_id", shortcut.container.id);
+            intent.putExtra("shortcut_path", shortcut.file.getPath());
+            activity.startActivity(intent);
+        }
+    }
     }
 }

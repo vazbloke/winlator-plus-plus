@@ -351,6 +351,9 @@
     <string name="show_touch_controls_by_default">Show touch screen controls by default</string>
     <string name="show_touch_controls_by_default_description">If unchecked, touch controls still function while visually hidden</string>
     <string name="export_to_frontend">Export to Frontend</string>
+    <string name="export_all_shortcuts">Export all shortcuts</string>
+    <string name="do_you_want_to_export_all_shortcuts_to_frontend">Are you sure you want to export all shortcuts to frontend?</string>
+    <string name="shortcuts_exported_successfully">Shortcuts exported successfully</string>
     <string name="frontend">Frontend</string>
     <string name="shortcut_export_path">Shortcut export path</string>
     <string name="shortcut_exported_to">Shortcut exported to</string>
