@@ -268,9 +268,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             public void onUnmapWindow(Window window) {
                 if (getIntent().getBooleanExtra("from_shortcut", false) && window.isApplicationWindow()) {
                     boolean hasAppWindow = false;
-                    synchronized (xServer.windowManager.windows) {
-                        for (int i = 0; i < xServer.windowManager.windows.size(); i++) {
-                            Window w = xServer.windowManager.windows.valueAt(i);
+                    synchronized (xServer.windowManager.getWindows()) {
+                        for (int i = 0; i < xServer.windowManager.getWindows().size(); i++) {
+                            Window w = xServer.windowManager.getWindows().valueAt(i);
                             if (w != window && w.isApplicationWindow()) {
                                 hasAppWindow = true;
                                 break;

@@ -25,6 +25,10 @@ public class WindowManager extends XResourceManager {
     public enum FocusRevertTo {NONE, POINTER_ROOT, PARENT}
     public final Window rootWindow;
     private final SparseArray<Window> windows = new SparseArray<>();
+
+    public SparseArray<Window> getWindows() {
+        return windows;
+    }
     public final DrawableManager drawableManager;
     private Window focusedWindow;
     private FocusRevertTo focusRevertTo = FocusRevertTo.NONE;

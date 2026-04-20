@@ -2,6 +2,7 @@ package com.winlator;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -18,6 +19,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.winlator.container.Shortcut;
@@ -26,6 +28,7 @@ import com.winlator.contentdialog.CreateFolderDialog;
 import com.winlator.contentdialog.ShortcutSettingsDialog;
 import com.winlator.core.AppUtils;
 import com.winlator.core.ArrayUtils;
+import com.winlator.core.FileUtils;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -205,10 +208,63 @@ public class ShortcutsFragment extends BaseFileManagerFragment<Shortcut> {
                             refreshContent();
                         });
                         break;
+                    case R.id.menu_item_export_to_frontend:
+                        exportShortcutToFrontend(shortcut);
+                        break;
                 }
                 return true;
             });
             listItemMenu.show();
+        }
+
+        private void exportShortcutToFrontend(Shortcut shortcut) {
+            Context context = getContext();
+            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+            String exportPath = preferences.getString("shortcut_export_path", AppUtils.DIRECTORY_DOWNLOADS + "/Winlator/FrontendShortcuts");
+            File exportDir = new File(exportPath);
+
+            if (!exportDir.exists() && !exportDir.mkdirs()) return;
+
+            String fileName = shortcut.name + "-" + shortcut.container.id + ".desktop";
+            File exportFile = new File(exportDir, fileName);
+            List<String> lines = FileUtils.readLines(shortcut.file, true);
+            boolean extraDataFound = false;
+            int lastLineIndex = -1;
+
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i).trim();
+                if (line.equals("[Extra Data]")) {
+                    extraDataFound = true;
+                    lastLineIndex = i;
+                }
+                else if (extraDataFound && line.startsWith("[")) {
+                    break;
+                }
+                else if (extraDataFound) {
+                    lastLineIndex = i;
+                }
+            }
+
+            if (!extraDataFound) {
+                lines.add("");
+                lines.add("[Extra Data]");
+                lines.add("ContainerId=" + shortcut.container.id);
+            }
+            else {
+                boolean containerIdFound = false;
+                for (int i = lines.indexOf("[Extra Data]") + 1; i <= lastLineIndex; i++) {
+                    if (lines.get(i).startsWith("ContainerId=")) {
+                        lines.set(i, "ContainerId=" + shortcut.container.id);
+                        containerIdFound = true;
+                        break;
+                    }
+                }
+                if (!containerIdFound) lines.add(lastLineIndex + 1, "ContainerId=" + shortcut.container.id);
+            }
+
+            if (FileUtils.writeLines(exportFile, lines)) {
+                AppUtils.showToast(context, getString(R.string.shortcut_exported_to) + ": " + exportFile.getPath());
+            }
         }
 
         private void runFromShortcut(Shortcut shortcut) {

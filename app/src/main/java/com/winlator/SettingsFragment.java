@@ -172,6 +172,23 @@ public class SettingsFragment extends Fragment {
         final CheckBox cbShowTouchControls = view.findViewById(R.id.CBShowTouchControls);
         cbShowTouchControls.setChecked(preferences.getBoolean("show_touch_controls", true));
 
+        final TextView tvShortcutExportPath = view.findViewById(R.id.TVShortcutExportPath);
+        String defaultShortcutExportPath = AppUtils.DIRECTORY_DOWNLOADS + "/Winlator/FrontendShortcuts";
+        tvShortcutExportPath.setText(preferences.getString("shortcut_export_path", defaultShortcutExportPath));
+
+        View.OnClickListener selectShortcutExportPath = (v) -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            getActivity().startActivityForResult(intent, MainActivity.OPEN_DIRECTORY_REQUEST_CODE);
+            ((MainActivity)getActivity()).setOpenFileCallback((uri) -> {
+                if (uri != null) {
+                    String path = FileUtils.getFilePathFromUri(uri);
+                    if (path != null) tvShortcutExportPath.setText(path);
+                }
+            });
+        };
+        tvShortcutExportPath.setOnClickListener(selectShortcutExportPath);
+        view.findViewById(R.id.BTShortcutExportPath).setOnClickListener(selectShortcutExportPath);
+
         final Spinner sWineVersion = view.findViewById(R.id.SWineVersion);
         loadWineVersionSpinner(view, sWineVersion);
 
@@ -206,6 +223,7 @@ public class SettingsFragment extends Fragment {
             editor.putBoolean("open_android_browser_from_wine", cbOpenAndroidBrowserFromWine.isChecked());
             editor.putBoolean("use_android_clipboard_on_wine", cbUseAndroidClipboardOnWine.isChecked());
             editor.putBoolean("show_touch_controls", cbShowTouchControls.isChecked());
+            editor.putString("shortcut_export_path", tvShortcutExportPath.getText().toString());
             putGamepadPlayerConfigs(view, editor);
 
             int newAppThemeId = rgAppTheme.getCheckedRadioButtonId();
