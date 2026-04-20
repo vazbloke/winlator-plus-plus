@@ -260,6 +260,14 @@
                                 android:tag="remove" />
                         </LinearLayout>
                     </LinearLayout>
+
+                    <View style="@style/FieldSeparator" />
+
+                    <CheckBox
+                        android:id="@+id/CBEnableHighQualityMIDI"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/enable_high_quality_midi" />
                 </LinearLayout>
 
                 <TextView

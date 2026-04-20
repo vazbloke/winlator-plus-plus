@@ -282,6 +282,10 @@ public abstract class GeneralComponents {
                 switch (type) {
                     case SOUNDFONT: {
                         String filename = FileUtils.getName(path);
+                        if (!filename.toLowerCase(Locale.ENGLISH).endsWith(".sf2")) {
+                            AppUtils.showToast(activity, R.string.invalid_file_format);
+                            return;
+                        }
                         File destination = new File(getComponentDir(type, activity), filename);
                         if (destination.isFile()) FileUtils.delete(destination);
                         if (FileUtils.copy(source, destination)) loadSpinner(type, spinner, parseDisplayText(type, filename), defaultItem);
@@ -323,7 +327,8 @@ public abstract class GeneralComponents {
 
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("*/*");
+        intent.setType(type == Type.SOUNDFONT ? "audio/x-soundfont" : "*/*");
+        if (type == Type.SOUNDFONT) intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"application/x-fluid-sf2", "audio/x-soundfont", "application/octet-stream"});
         activity.startActivityForResult(intent, MainActivity.OPEN_FILE_REQUEST_CODE);
     }
 
