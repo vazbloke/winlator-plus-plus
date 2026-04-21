@@ -5,9 +5,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.DocumentsContract;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -66,8 +68,54 @@ public class InputControlsFragment extends Fragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setHasOptionsMenu(false);
+        setHasOptionsMenu(true);
         manager = new InputControlsManager(getContext());
+    }
+
+    @Override
+    public void onCreateOptionsMenu(@NonNull android.view.Menu menu, @NonNull android.view.MenuInflater inflater) {
+        inflater.inflate(R.menu.input_controls_menu, menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull android.view.MenuItem item) {
+        if (item.getItemId() == R.id.input_controls_export_import_all) {
+            showExportImportAllDialog();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void showExportImportAllDialog() {
+        final Context context = getContext();
+        String[] options = {getString(R.string.export_all), getString(R.string.import_all)};
+        ContentDialog.showSelectionList(context, R.string.export_import_all, options, false, (positions) -> {
+            if (!positions.isEmpty()) {
+                int position = positions.get(0);
+                if (position == 0) {
+                    exportAllProfiles();
+                } else if (position == 1) {
+                    importAllProfiles();
+                }
+            }
+        });
+    }
+
+    private void exportAllProfiles() {
+        ArrayList<ControlsProfile> profiles = manager.getProfiles();
+        File exportDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Winlator/profiles");
+        if (!exportDir.exists()) exportDir.mkdirs();
+
+        for (ControlsProfile profile : profiles) {
+            manager.exportProfile(profile, exportDir);
+        }
+        AppUtils.showToast(getContext(), R.string.all_profiles_exported_successfully);
+    }
+
+    private void importAllProfiles() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.fromFile(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)));
+        getActivity().startActivityFromFragment(this, intent, MainActivity.OPEN_DIRECTORY_REQUEST_CODE);
     }
 
     @Override
@@ -78,15 +126,44 @@ public class InputControlsFragment extends Fragment {
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        if (requestCode == MainActivity.OPEN_FILE_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
-            try {
-                ControlsProfile importedProfile = manager.importProfile(new JSONObject(FileUtils.readString(getContext(), data.getData())));
-                if (importProfileCallback != null) importProfileCallback.call(importedProfile);
+        if (resultCode == Activity.RESULT_OK && data != null) {
+            if (requestCode == MainActivity.OPEN_FILE_REQUEST_CODE) {
+                try {
+                    ControlsProfile importedProfile = manager.importProfile(new JSONObject(FileUtils.readString(getContext(), data.getData())));
+                    if (importProfileCallback != null) importProfileCallback.call(importedProfile);
+                } catch (Exception e) {
+                    AppUtils.showToast(getContext(), R.string.unable_to_import_profile);
+                }
+                importProfileCallback = null;
+            } else if (requestCode == MainActivity.OPEN_DIRECTORY_REQUEST_CODE) {
+                importProfilesFromDirectory(data.getData());
             }
-            catch (Exception e) {
-                AppUtils.showToast(getContext(), R.string.unable_to_import_profile);
+        }
+    }
+
+    private void importProfilesFromDirectory(android.net.Uri treeUri) {
+        Context context = getContext();
+        androidx.documentfile.provider.DocumentFile root = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, treeUri);
+        if (root != null) {
+            androidx.documentfile.provider.DocumentFile[] files = root.listFiles();
+            boolean success = false;
+            for (androidx.documentfile.provider.DocumentFile file : files) {
+                if (file.getName() != null && file.getName().endsWith(".icp")) {
+                    try {
+                        String json = FileUtils.readString(context, file.getUri());
+                        if (json != null) {
+                            manager.importProfile(new JSONObject(json));
+                            success = true;
+                        }
+                    } catch (Exception e) {}
+                }
             }
-            importProfileCallback = null;
+            if (success) {
+                AppUtils.showToast(context, R.string.all_profiles_imported_successfully);
+                final Spinner sProfile = getView().findViewById(R.id.SProfile);
+                loadProfileSpinner(sProfile);
+                updateLayout.run();
+            }
         }
     }
 

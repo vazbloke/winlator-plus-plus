@@ -185,8 +185,11 @@ public class InputControlsManager {
     }
 
     public File exportProfile(ControlsProfile profile) {
-        File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-        File destination = new File(downloadsDir, "Winlator/profiles/"+profile.getName()+".icp");
+        return exportProfile(profile, new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Winlator/profiles"));
+    }
+
+    public File exportProfile(ControlsProfile profile, File destinationDir) {
+        File destination = new File(destinationDir, profile.getName()+".icp");
         FileUtils.copy(ControlsProfile.getProfileFile(context, profile.id), destination);
         MediaScannerConnection.scanFile(context, new String[]{destination.getAbsolutePath()}, null, null);
         return destination.isFile() ? destination : null;
