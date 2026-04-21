@@ -171,7 +171,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             itemId == R.id.menu_item_home ||
             itemId == R.id.menu_item_view_style ||
             itemId == R.id.menu_item_new_folder ||
-            itemId == R.id.menu_item_export_all) {
+            itemId == R.id.menu_item_export_all ||
+            itemId == R.id.input_controls_export_import_all) {
             return super.onOptionsItemSelected(menuItem);
         }
         else {

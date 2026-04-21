@@ -103,7 +103,9 @@ public class InputControlsFragment extends Fragment {
 
     private void exportAllProfiles() {
         ArrayList<ControlsProfile> profiles = manager.getProfiles();
-        File exportDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Winlator/profiles");
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        String exportPath = preferences.getString("control_profiles_export_path", AppUtils.DIRECTORY_DOWNLOADS + "/Winlator/profiles");
+        File exportDir = new File(exportPath);
         if (!exportDir.exists()) exportDir.mkdirs();
 
         for (ControlsProfile profile : profiles) {
@@ -114,7 +116,14 @@ public class InputControlsFragment extends Fragment {
 
     private void importAllProfiles() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-        intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.fromFile(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)));
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        String exportPath = preferences.getString("control_profiles_export_path", AppUtils.DIRECTORY_DOWNLOADS + "/Winlator/profiles");
+        File exportDir = new File(exportPath);
+        if (exportDir.exists()) {
+            intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.fromFile(exportDir));
+        } else {
+            intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, Uri.fromFile(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)));
+        }
         getActivity().startActivityFromFragment(this, intent, MainActivity.OPEN_DIRECTORY_REQUEST_CODE);
     }
 

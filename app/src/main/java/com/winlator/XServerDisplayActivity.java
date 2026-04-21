@@ -168,7 +168,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (!isGenerateWineprefix()) {
             ContainerManager containerManager = new ContainerManager(this);
 
-            int containerId = -1;
+            int containerId = getIntent().getIntExtra("container_id", -1);
             if (shortcutPath != null && !shortcutPath.isEmpty()) {
                 File file = new File(shortcutPath);
                 if (file.exists()) {
@@ -185,12 +185,8 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
             container = containerManager.getContainerById(containerId);
             if (container == null) {
-                ArrayList<Container> containers = containerManager.getContainers();
-                if (!containers.isEmpty()) container = containers.get(0);
-                if (container == null) {
-                    finish();
-                    return;
-                }
+                finish();
+                return;
             }
             containerManager.activateContainer(container);
 

@@ -185,7 +185,9 @@ public class InputControlsManager {
     }
 
     public File exportProfile(ControlsProfile profile) {
-        return exportProfile(profile, new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Winlator/profiles"));
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        String exportPath = preferences.getString("control_profiles_export_path", AppUtils.DIRECTORY_DOWNLOADS + "/Winlator/profiles");
+        return exportProfile(profile, new File(exportPath));
     }
 
     public File exportProfile(ControlsProfile profile, File destinationDir) {

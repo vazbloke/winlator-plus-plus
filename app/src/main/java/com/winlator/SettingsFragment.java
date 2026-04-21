@@ -189,6 +189,23 @@ public class SettingsFragment extends Fragment {
         tvShortcutExportPath.setOnClickListener(selectShortcutExportPath);
         view.findViewById(R.id.BTShortcutExportPath).setOnClickListener(selectShortcutExportPath);
 
+        final TextView tvControlProfilesExportPath = view.findViewById(R.id.TVControlProfilesExportPath);
+        String defaultControlProfilesExportPath = AppUtils.DIRECTORY_DOWNLOADS + "/Winlator/profiles";
+        tvControlProfilesExportPath.setText(preferences.getString("control_profiles_export_path", defaultControlProfilesExportPath));
+
+        View.OnClickListener selectControlProfilesExportPath = (v) -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            getActivity().startActivityForResult(intent, MainActivity.OPEN_DIRECTORY_REQUEST_CODE);
+            ((MainActivity)getActivity()).setOpenFileCallback((uri) -> {
+                if (uri != null) {
+                    String path = FileUtils.getFilePathFromUri(uri);
+                    if (path != null) tvControlProfilesExportPath.setText(path);
+                }
+            });
+        };
+        tvControlProfilesExportPath.setOnClickListener(selectControlProfilesExportPath);
+        view.findViewById(R.id.BTControlProfilesExportPath).setOnClickListener(selectControlProfilesExportPath);
+
         final Spinner sWineVersion = view.findViewById(R.id.SWineVersion);
         loadWineVersionSpinner(view, sWineVersion);
 
@@ -224,6 +241,7 @@ public class SettingsFragment extends Fragment {
             editor.putBoolean("use_android_clipboard_on_wine", cbUseAndroidClipboardOnWine.isChecked());
             editor.putBoolean("show_touch_controls", cbShowTouchControls.isChecked());
             editor.putString("shortcut_export_path", tvShortcutExportPath.getText().toString());
+            editor.putString("control_profiles_export_path", tvControlProfilesExportPath.getText().toString());
             putGamepadPlayerConfigs(view, editor);
 
             int newAppThemeId = rgAppTheme.getCheckedRadioButtonId();

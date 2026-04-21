@@ -92,6 +92,11 @@
     <string name="credits_and_third_party_apps">Credits and Third-party apps</string>
     <string name="external_controllers">External Controllers</string>
     <string name="no_external_controllers_found">No external controllers found</string>
+    <string name="export_import_all">Export/Import all</string>
+    <string name="export_all">Export all</string>
+    <string name="import_all">Import all</string>
+    <string name="all_profiles_exported_successfully">All profiles exported successfully</string>
+    <string name="all_profiles_imported_successfully">All profiles imported successfully</string>
     <string name="graphics_driver">Graphics Driver</string>
     <string name="audio_driver">Audio Driver</string>
     <string name="loading">Loading...</string>
@@ -355,8 +360,9 @@
     <string name="export_all_shortcuts">Export all shortcuts</string>
     <string name="do_you_want_to_export_all_shortcuts_to_frontend">Are you sure you want to export all shortcuts to frontend?</string>
     <string name="shortcuts_exported_successfully">Shortcuts exported successfully</string>
-    <string name="frontend">Frontend</string>
-    <string name="shortcut_export_path">Shortcut export path</string>
+    <string name="export_paths">Export paths</string>
+    <string name="control_profiles">Control profiles</string>
+    <string name="shortcut_export_path">Shortcuts</string>
     <string name="shortcut_exported_to">Shortcut exported to</string>
     <string name="enable_high_quality_midi">Enable high quality MIDI processing</string>
     <string name="invalid_file_format">Invalid file format</string>
