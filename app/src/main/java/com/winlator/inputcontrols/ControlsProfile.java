@@ -22,7 +22,6 @@ public class ControlsProfile implements Comparable<ControlsProfile>, GamepadSlot
     private String name;
     private float cursorSpeed = 1.0f;
     private boolean disableMouseInput = false;
-    private boolean disconnectKeyBoundControllers = false;
     private final ArrayList<ControlElement> elements = new ArrayList<>();
     private final ArrayList<ExternalController> controllers = new ArrayList<>();
     private final List<ControlElement> immutableElements = Collections.unmodifiableList(elements);
@@ -61,14 +60,6 @@ public class ControlsProfile implements Comparable<ControlsProfile>, GamepadSlot
 
     public void setDisableMouseInput(boolean disableMouseInput) {
         this.disableMouseInput = disableMouseInput;
-    }
-
-    public boolean isDisconnectKeyBoundControllers() {
-        return disconnectKeyBoundControllers;
-    }
-
-    public void setDisconnectKeyBoundControllers(boolean disconnectKeyBoundControllers) {
-        this.disconnectKeyBoundControllers = disconnectKeyBoundControllers;
     }
 
     public boolean isVirtualGamepad() {
@@ -135,7 +126,6 @@ public class ControlsProfile implements Comparable<ControlsProfile>, GamepadSlot
             data.put("name", name);
             data.put("cursorSpeed", Float.valueOf(cursorSpeed));
             if (disableMouseInput) data.put("disableMouseInput", disableMouseInput);
-            if (disconnectKeyBoundControllers) data.put("disconnectKeyBoundControllers", disconnectKeyBoundControllers);
 
             JSONArray elementsJSONArray = new JSONArray();
             if (!elementsLoaded && file.isFile()) {
@@ -186,16 +176,15 @@ public class ControlsProfile implements Comparable<ControlsProfile>, GamepadSlot
     }
 
     public ArrayList<ExternalController> loadControllers() {
+        if (controllersLoaded) return controllers;
         controllers.clear();
         controllersLoaded = false;
-        disconnectKeyBoundControllers = false;
 
         File file = getProfileFile(context, id);
         if (!file.isFile()) return controllers;
 
         try {
             JSONObject profileJSONObject = new JSONObject(FileUtils.readString(file));
-            if (profileJSONObject.has("disconnectKeyBoundControllers")) disconnectKeyBoundControllers = profileJSONObject.getBoolean("disconnectKeyBoundControllers");
             if (!profileJSONObject.has("controllers")) return controllers;
             JSONArray controllersJSONArray = profileJSONObject.getJSONArray("controllers");
             for (int i = 0; i < controllersJSONArray.length(); i++) {

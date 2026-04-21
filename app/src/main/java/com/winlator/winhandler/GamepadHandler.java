@@ -59,31 +59,11 @@ public class GamepadHandler {
 
         ControlsProfile profile = winHandler.activity.getInputControlsView().getProfile();
         boolean useVirtualGamepad = profile != null && profile.isVirtualGamepad();
-        boolean disconnectKeyBoundControllers = profile != null && profile.isDisconnectKeyBoundControllers();
 
         for (byte i = 0; i < GAMEPAD_MAX_COUNT; i++) gamepadSlots[i] = null;
 
-        ArrayList<ExternalController> filteredControllers = new ArrayList<>();
         synchronized (connectedControllers) {
             ExternalController.updateConnectedControllers(connectedControllers);
-
-            if (disconnectKeyBoundControllers) {
-                ArrayList<ExternalController> profileControllers = profile.loadControllers();
-                for (ExternalController controller : connectedControllers) {
-                    ExternalController profileController = null;
-                    for (ExternalController pc : profileControllers) {
-                        if (pc.getId().equals(controller.getId())) {
-                            profileController = pc;
-                            break;
-                        }
-                    }
-
-                    if (profileController == null || profileController.getControllerBindingCount() == 0) {
-                        filteredControllers.add(controller);
-                    }
-                }
-            }
-            else filteredControllers.addAll(connectedControllers);
         }
 
         boolean autoAssign = true;
@@ -91,7 +71,7 @@ public class GamepadHandler {
             GamepadPlayerConfig config = gamepadPlayerConfigs[i];
             if (config.name.isEmpty()) continue;
             if (config.mode == GamepadPlayerConfig.MODE_EXTERNAL_CONTROLLER) {
-                for (ExternalController controller : filteredControllers) {
+                for (ExternalController controller : connectedControllers) {
                     if (controller.getName().equals(config.name)) {
                         gamepadSlots[i] = controller;
                         autoAssign = false;
@@ -110,7 +90,7 @@ public class GamepadHandler {
             int index = 0;
             for (byte i = 0; i < GAMEPAD_MAX_COUNT; i++) {
                 if (gamepadSlots[i] != null) continue;
-                gamepadSlots[i] = index < filteredControllers.size() ? filteredControllers.get(index) : null;
+                gamepadSlots[i] = index < connectedControllers.size() ? connectedControllers.get(index) : null;
                 index++;
             }
         }
