@@ -206,27 +206,29 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        // 1. Is this our Gamepad?
         if (event.getDeviceId() == controller.getDeviceId()) {
-            // ONLY map the key to Winlator on the initial press (ACTION_DOWN)
-            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-                updateControllerBinding(event.getKeyCode(), Binding.NONE);
+            int code = event.getKeyCode();
+
+            // Let the shared Odin volume/back buttons pass naturally
+            if (code == KeyEvent.KEYCODE_BACK ||
+                code == KeyEvent.KEYCODE_VOLUME_UP ||
+                code == KeyEvent.KEYCODE_VOLUME_DOWN) {
+                return super.dispatchKeyEvent(event);
             }
 
-            // CRITICAL: We return true for ALL actions (DOWN, UP, and MULTIPLE).
-            // If we don't consume the ACTION_UP, the Android RecyclerView registers a click!
+            // Map the gamepad key
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                updateControllerBinding(code, Binding.NONE);
+            }
+            
+            // Swallow the gamepad input so it doesn't trigger Android UI ghost clicks
             return true;
         }
 
-        // The Brick Wall: Allow ONLY system keys to function normally
-        int code = event.getKeyCode();
-        if (code == KeyEvent.KEYCODE_BACK ||
-                code == KeyEvent.KEYCODE_VOLUME_UP ||
-                code == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            return super.dispatchKeyEvent(event);
-        }
-
-        // Destroy every other ghost key (Enter, D-pad, Space) that the OS might synthesize
-        return true;
+        // 2. THE BLACKLIST FALLBACK
+        // If it's an external keyboard, a mouse click, or anything else, let it pass normally!
+        return super.dispatchKeyEvent(event);
     }
 
     // Add the helper method

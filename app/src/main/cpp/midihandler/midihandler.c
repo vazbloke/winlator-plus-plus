@@ -30,7 +30,7 @@ static MIDIHandler* MIDIHandler_allocate() {
     fluid_settings_setint(settings, "synth.cpu-cores", 4);
     fluid_settings_setnum(settings, "synth.gain", 0.6f);
     fluid_settings_setstr(settings, "audio.oboe.performance-mode", "LowLatency");
-    fluid_settings_setstr(settings, "audio.oboe.sharing-mode", "Exclusive");
+    fluid_settings_setstr(settings, "audio.oboe.sharing-mode", "Shared"); // Change to Shared
     fluid_settings_setnum(settings, "synth.sample-rate", FLUIDSYNTH_SAMPLE_RATE);
 
     setAudioLatency(settings, FLUIDSYNTH_LATENCY);
@@ -137,6 +137,9 @@ Java_com_winlator_winhandler_MIDIHandler_loadSoundFont(JNIEnv *env, jobject obj,
                                                        jstring soundfontPath) {
     const char* path = (*env)->GetStringUTFChars(env, soundfontPath, NULL);
     MIDIHandler_loadSoundFont((MIDIHandler*)nativePtr, path);
+
+    // ADD THIS LINE to prevent the memory leak!
+    (*env)->ReleaseStringUTFChars(env, soundfontPath, path);
 }
 
 JNIEXPORT void JNICALL

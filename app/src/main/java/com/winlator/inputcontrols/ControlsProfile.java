@@ -175,6 +175,11 @@ public class ControlsProfile implements Comparable<ControlsProfile>, GamepadSlot
         return name.toLowerCase(Locale.ENGLISH).contains("template");
     }
 
+    public void unloadControllers() {
+        controllers.clear();
+        controllersLoaded = false;
+    }
+
     public ArrayList<ExternalController> loadControllers() {
         if (controllersLoaded) return controllers;
         controllers.clear();

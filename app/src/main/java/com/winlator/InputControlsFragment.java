@@ -272,6 +272,9 @@ public class InputControlsFragment extends Fragment {
     @Override
     public void onStart() {
         super.onStart();
+        if (currentProfile != null) {
+            currentProfile.unloadControllers();
+        }
         if (updateLayout != null) updateLayout.run();
     }
 

@@ -212,12 +212,27 @@ public class InputControlsView extends View {
         return profile;
     }
 
+    @Override
+    protected void onWindowVisibilityChanged(int visibility) {
+        super.onWindowVisibilityChanged(visibility);
+        // If the user minimizes the app or opens a full-screen menu, stop the inputs!
+        if (visibility != VISIBLE) {
+            stopMouseMoveTimer();
+        }
+    }
+
     public synchronized void setProfile(ControlsProfile profile) {
+        // If the profile is changing (or being cleared), kill the timer first
+        if (this.profile != profile) {
+            stopMouseMoveTimer();
+        }
+        
         if (profile != null) {
             this.profile = profile;
             deselectAllElements();
+        } else {
+            this.profile = null;
         }
-        else this.profile = null;
     }
 
     public boolean isShowTouchscreenControls() {
@@ -305,6 +320,9 @@ public class InputControlsView extends View {
 
                 @Override
                 public void run() {
+                    // THE RESUME SHIELD: Protect background injections
+                    if (!readyToDraw) return;
+
                     float x = mouseMoveOffset.x;
                     float y = mouseMoveOffset.y;
                     
@@ -375,16 +393,64 @@ public class InputControlsView extends View {
                     int dy = (int) accumY;
 
                     if (dx != 0 || dy != 0) {
-                        accumX -= dx;
-                        accumY -= dy;
-                        xServer.injectPointerMoveDelta(dx, dy);
+                        
+                        // --- THE CORNER CRASH FIX ---
+                        // Check local bounds before injecting so we don't push the Android 
+                        // pointer into negative memory while waiting for Windows to correct it.
+                        if (xServer.pointer != null && xServer.screenInfo != null) {
+                            int currentX = xServer.pointer.getX();
+                            int currentY = xServer.pointer.getY();
+                            
+                            // Trim DX so it cannot push X below 0 or above (width - 1)
+                            int minDx = -currentX;
+                            int maxDx = (xServer.screenInfo.width - 1) - currentX;
+                            dx = Math.max(minDx, Math.min(dx, maxDx));
+                            
+                            // Trim DY so it cannot push Y below 0 or above (height - 1)
+                            int minDy = -currentY;
+                            int maxDy = (xServer.screenInfo.height - 1) - currentY;
+                            dy = Math.max(minDy, Math.min(dy, maxDy));
+                        }
+
+                        // Only inject if there is still delta left after trimming
+                        if (dx != 0 || dy != 0) {
+                            accumX -= dx;
+                            accumY -= dy;
+                            xServer.injectPointerMoveDelta(dx, dy);
+                        } else {
+                            // We hit the wall! Bleed off the accumulator so 
+                            // it doesn't build up massive "off-screen" momentum.
+                            accumX = 0f;
+                            accumY = 0f;
+                        }
                     }
                 }
             }, 0, 1000 / 60);
         }
     }
 
-private void processJoystickInput(ExternalController controller) {
+    private void stopMouseMoveTimer() {
+        // 1. Kill the runaway timer
+        if (mouseMoveTimer != null) {
+            mouseMoveTimer.cancel();
+            mouseMoveTimer.purge();
+            mouseMoveTimer = null;
+        }
+        
+        // 2. Wipe the analog input dictionaries
+        mouseXSources.clear();
+        mouseYSources.clear();
+        mouseMoveOffset.set(0, 0);
+
+        // 3. Wipe the digital keyboard states (prevents stuck keys on resume)
+        if (activeAxisStates != null) {
+            for (int i = 0; i < activeAxisStates.length; i++) {
+                activeAxisStates[i] = 0;
+            }
+        }
+    }
+
+    private void processJoystickInput(ExternalController controller) {
         // A solid deadzone prevents stick drift from accidentally typing keyboard keys
         float DIGITAL_DEADZONE = 0.3f; 
         
@@ -452,6 +518,9 @@ private void processJoystickInput(ExternalController controller) {
 
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
+        // THE RESUME SHIELD
+        if (!readyToDraw) return true;
+
         if (!editMode && profile != null) {
             ExternalController controller = profile.getController(event.getDeviceId());
             if (controller != null && controller.updateStateFromMotionEvent(event)) {
@@ -472,7 +541,10 @@ private void processJoystickInput(ExternalController controller) {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (editMode && readyToDraw) {
+        // THE RESUME SHIELD: Consume the touch but do nothing
+        if (!readyToDraw) return true;
+
+        if (editMode) {
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN: {
                     startX = event.getX();
@@ -565,22 +637,47 @@ private void processJoystickInput(ExternalController controller) {
 
     public boolean onKeyEvent(KeyEvent event) {
         if (profile != null && event.getRepeatCount() == 0) {
+            
+            // 1. Check if the device sending the key is our active Gamepad
             ExternalController controller = profile.getController(event.getDeviceId());
+            
             if (controller != null) {
-                ExternalControllerBinding controllerBinding = controller.getControllerBinding(event.getKeyCode());
+                int code = event.getKeyCode();
+
+                // Let shared Odin system keys pass
+                if (code == KeyEvent.KEYCODE_BACK ||
+                    code == KeyEvent.KEYCODE_VOLUME_UP ||
+                    code == KeyEvent.KEYCODE_VOLUME_DOWN) {
+                    return false; 
+                }
+
+                // THE RESUME SHIELD: Ignore inputs if the screen is still transitioning
+                if (!readyToDraw) return true;
+
+                // Process the mapped Gamepad button
+                ExternalControllerBinding controllerBinding = controller.getControllerBinding(code);
                 if (controllerBinding != null) {
                     int action = event.getAction();
 
                     if (action == KeyEvent.ACTION_DOWN) {
-                        handleInputEvent(controllerBinding.getBinding(), true, 0, event.getKeyCode());
+                        handleInputEvent(controllerBinding.getBinding(), true);
                     }
                     else if (action == KeyEvent.ACTION_UP) {
-                        handleInputEvent(controllerBinding.getBinding(), false, 0, event.getKeyCode());
+                        handleInputEvent(controllerBinding.getBinding(), false);
                     }
+                    
+                    // Swallow the mapped gamepad key
                     return true;
                 }
+                
+                // If it's an unmapped gamepad key, STILL swallow it so Android doesn't 
+                // synthesize ghost "Enter" or "Spacebar" presses in the background.
+                return true;
             }
         }
+
+        // 2. THE BLACKLIST FALLBACK 
+        // We return false. The input goes straight to Winlator's XServer keyboard handler!
         return false;
     }
 

@@ -313,9 +313,36 @@ public class WinHandler {
                 short x = receiveData.getShort();
                 short y = receiveData.getShort();
                 XServer xServer = activity.getXServer();
-                xServer.pointer.setX(x);
-                xServer.pointer.setY(y);
-                activity.getXServerView().requestRender();
+                
+                if (xServer != null && xServer.pointer != null && xServer.screenInfo != null) {
+                    // Hand the math and the rendering over to the Main UI Thread
+                    activity.runOnUiThread(() -> {
+                        // --- THE OFF-SCREEN POISON FIX ---
+                        // Flash games shove the hardware cursor to (-1, -1) when using custom crosshairs.
+                        // We must clamp the values to 0 to prevent LLVMPipe from hitting a negative memory index.
+                                            // The Ultimate Bounds Clamp
+                        // Math.min protects the bottom-right corner, Math.max protects the top-left.
+                        int safeX = Math.max(0, Math.min(x, xServer.screenInfo.width - 1));
+                        int safeY = Math.max(0, Math.min(y, xServer.screenInfo.height - 1));
+                        
+                        // 1. Safety check the XServer instance
+                        xServer.pointer.setX(safeX);
+                        xServer.pointer.setY(safeY);
+                        
+                        // 2. The Render Guard
+                        // Fetch the view dynamically. Only ask LLVMPipe to draw if the 
+                        // Android view is fully attached to the window manager and visible.
+                        android.view.View xServerView = activity.getXServerView();
+                        if (xServerView != null && 
+                            xServerView.isAttachedToWindow() && 
+                            xServerView.getVisibility() == android.view.View.VISIBLE) {
+                            
+                            // We have to cast or use the specific method depending on XServerView's class.
+                            // Since requestRender is specific to GLSurfaceView/XServerView:
+                            activity.getXServerView().requestRender();
+                        }
+                    });
+                }
                 break;
             }
             case RequestCodes.OPEN_URL: {
