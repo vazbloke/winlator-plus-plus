@@ -94,10 +94,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 showFragment(new ContainerFileManagerFragment(containerId, startPath));
             }
 
-            String shortcutPath = intent.getStringExtra("shortcut_path");
-            if (shortcutPath != null && !shortcutPath.isEmpty()) {
-                handleShortcutLaunch(shortcutPath);
-            }
         }
     }
 

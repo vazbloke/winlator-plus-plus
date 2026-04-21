@@ -22,10 +22,9 @@ public class SoundFontTestDialog extends ContentDialog {
         String soundfontPath = GeneralComponents.getDefinitivePath(GeneralComponents.Type.SOUNDFONT, context, soundfont);
 
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean highQualityMIDI = preferences.getBoolean("enable_high_quality_midi", false);
 
         final MIDIHandler midiHandler = new MIDIHandler(null);
-        midiHandler.init(highQualityMIDI);
+        midiHandler.init();
         midiHandler.loadSoundFont(soundfontPath);
 
         int[] channel = {0};

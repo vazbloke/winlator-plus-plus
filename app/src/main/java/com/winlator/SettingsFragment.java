@@ -115,9 +115,6 @@ public class SettingsFragment extends Fragment {
         String midiInputDevice = preferences.getString("midi_input_device", "auto");
         loadMIDIInputDeviceSpinner(sMIDIInputDevice, midiInputDevice);
 
-        final CheckBox cbEnableHighQualityMIDI = view.findViewById(R.id.CBEnableHighQualityMIDI);
-        cbEnableHighQualityMIDI.setChecked(preferences.getBoolean("enable_high_quality_midi", false));
-
         final Spinner sBox64Version = view.findViewById(R.id.SBox64Version);
         String box64Version = preferences.getString("box64_version", null);
         GeneralComponents.initViews(GeneralComponents.Type.BOX64, view.findViewById(R.id.Box64Toolbox), sBox64Version, box64Version, DefaultVersion.BOX64);
@@ -226,7 +223,6 @@ public class SettingsFragment extends Fragment {
             editor.putBoolean("open_android_browser_from_wine", cbOpenAndroidBrowserFromWine.isChecked());
             editor.putBoolean("use_android_clipboard_on_wine", cbUseAndroidClipboardOnWine.isChecked());
             editor.putBoolean("show_touch_controls", cbShowTouchControls.isChecked());
-            editor.putBoolean("enable_high_quality_midi", cbEnableHighQualityMIDI.isChecked());
             editor.putString("shortcut_export_path", tvShortcutExportPath.getText().toString());
             putGamepadPlayerConfigs(view, editor);
 
