@@ -137,5 +137,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical" />
+
+        <TextView
+            android:id="@+id/TVEmptyText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/no_external_controllers_found"
+            android:gravity="center"
+            android:layout_marginTop="16dp"
+            android:visibility="gone" />
     </LinearLayout>
 </ScrollView>

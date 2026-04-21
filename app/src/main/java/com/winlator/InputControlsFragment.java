@@ -51,7 +51,6 @@ public class InputControlsFragment extends Fragment {
     private static final String INPUT_CONTROLS_URL = "https://raw.githubusercontent.com/brunodev85/winlator/main/input_controls/%s";
     private InputControlsManager manager;
     private ControlsProfile currentProfile;
-    private ControlsProfile newlyCreatedProfile;
     private Runnable updateLayout;
     private Callback<ControlsProfile> importProfileCallback;
     private final int selectedProfileId;
@@ -99,6 +98,7 @@ public class InputControlsFragment extends Fragment {
         final SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
 
         currentProfile = selectedProfileId > 0 ? manager.getProfile(selectedProfileId) : null;
+        manager.bufferPreviouslyInteractedProfileId = selectedProfileId;
 
         final Spinner sProfile = view.findViewById(R.id.SProfile);
         loadProfileSpinner(sProfile);
@@ -138,8 +138,7 @@ public class InputControlsFragment extends Fragment {
         sbOverlayOpacity.setValue(preferences.getFloat("overlay_opacity", InputControlsView.DEFAULT_OVERLAY_OPACITY) * 100);
 
         view.findViewById(R.id.BTAddProfile).setOnClickListener((v) -> ContentDialog.prompt(context, R.string.profile_name, null, (name) -> {
-            InputControlsManager.newlyCreatedProfile = manager.createProfile(name);
-            currentProfile = InputControlsManager.newlyCreatedProfile;
+            currentProfile = manager.createProfile(name);
             loadProfileSpinner(sProfile);
             updateLayout.run();
         }));
@@ -288,9 +287,9 @@ public class InputControlsFragment extends Fragment {
             values.add(profile.getName());
         }
 
-        if (selectedPosition == 0 && InputControlsManager.newlyCreatedProfile != null) {
+        if (selectedPosition == 0 && InputControlsManager.bufferPreviouslyInteractedProfileId != 0) {
             for (int i = 0; i < profiles.size(); i++) {
-                if (profiles.get(i).id == InputControlsManager.newlyCreatedProfile.id) {
+                if (profiles.get(i).id == InputControlsManager.bufferPreviouslyInteractedProfileId) {
                     selectedPosition = i + 1;
                     currentProfile = profiles.get(i);
                     break;
@@ -303,7 +302,11 @@ public class InputControlsFragment extends Fragment {
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                currentProfile = position > 0 ? profiles.get(position - 1) : null;
+                currentProfile = null;
+                if (position > 0) {
+                    currentProfile = profiles.get(position - 1);
+                    InputControlsManager.bufferPreviouslyInteractedProfileId = currentProfile.id;
+                }
                 updateLayout.run();
             }
 

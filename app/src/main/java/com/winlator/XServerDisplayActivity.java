@@ -704,8 +704,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
                 int previousProfileId = position > 0 ? inputControlsManager.getProfiles().get(position - 1).id : 0;
                 inputControlsManager.loadProfiles(true);
 
-                if (previousProfileId == 0 && InputControlsManager.newlyCreatedProfile != null) {
-                    showInputControls(InputControlsManager.newlyCreatedProfile);
+                if (previousProfileId == 0 && InputControlsManager.bufferPreviouslyInteractedProfileId != 0) {
+                    ControlsProfile profile = inputControlsManager.getProfile(InputControlsManager.bufferPreviouslyInteractedProfileId);
+                    if (profile != null) showInputControls(profile);
                 }
                 else if (previousProfileId > 0) {
                     ControlsProfile newProfile = inputControlsManager.getProfile(previousProfileId);

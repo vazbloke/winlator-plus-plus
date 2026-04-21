@@ -30,7 +30,7 @@ public class InputControlsManager {
     private ArrayList<ControlsProfile> profiles;
     private int maxProfileId;
     private boolean profilesLoaded = false;
-    public static ControlsProfile newlyCreatedProfile;
+    public static int bufferPreviouslyInteractedProfileId = 0;
 
     public InputControlsManager(Context context) {
         this.context = context;
@@ -116,7 +116,6 @@ public class InputControlsManager {
         profile.setName(name);
         profile.save();
         profiles.add(profile);
-        newlyCreatedProfile = profile;
         return profile;
     }
 

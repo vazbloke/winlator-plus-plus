@@ -21,8 +21,6 @@ public class SoundFontTestDialog extends ContentDialog {
 
         String soundfontPath = GeneralComponents.getDefinitivePath(GeneralComponents.Type.SOUNDFONT, context, soundfont);
 
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-
         final MIDIHandler midiHandler = new MIDIHandler(null);
         midiHandler.init();
         midiHandler.loadSoundFont(soundfontPath);
@@ -63,11 +61,6 @@ public class SoundFontTestDialog extends ContentDialog {
             public void onKeyUp(int index) {
                 midiHandler.noteOff(channel[0], index + 60);
             }
-        });
-
-        setOnDismissListener((d) -> {
-            midiHandler.close();
-            midiHandler.destroy();
         });
 
         findViewById(R.id.LLBottomBar).setVisibility(View.GONE);
