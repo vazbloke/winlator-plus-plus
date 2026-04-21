@@ -165,3 +165,15 @@ Java_com_winlator_winhandler_MIDIHandler_keyPressure(JNIEnv *env, jobject obj, j
                                                      jint channel, jint key, jint value) {
     MIDIHandler_keyPressure((MIDIHandler*)nativePtr, channel, key, value);
 }
+
+JNIEXPORT void JNICALL
+Java_com_winlator_winhandler_MIDIHandler_resetSynth(JNIEnv *env, jobject obj, jlong nativePtr) {
+    MIDIHandler* midiHandler = (MIDIHandler*)nativePtr;
+    if (midiHandler && midiHandler->synth) {
+        // Send a panic/kill signal to all 16 MIDI channels
+        for (int i = 0; i < 16; i++) {
+            fluid_synth_all_sounds_off(midiHandler->synth, i);
+            fluid_synth_all_notes_off(midiHandler->synth, i);
+        }
+    }
+}
