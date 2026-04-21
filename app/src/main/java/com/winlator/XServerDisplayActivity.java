@@ -163,9 +163,35 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
         rootFS = RootFS.find(this);
 
+        String shortcutPath = getIntent().getStringExtra("shortcut_path");
+
         if (!isGenerateWineprefix()) {
             ContainerManager containerManager = new ContainerManager(this);
-            container = containerManager.getContainerById(getIntent().getIntExtra("container_id", 0));
+
+            int containerId = -1;
+            if (shortcutPath != null && !shortcutPath.isEmpty()) {
+                File file = new File(shortcutPath);
+                if (file.exists()) {
+                    for (String line : FileUtils.readLines(file, true)) {
+                        if (line.startsWith("ContainerId=")) {
+                            try {
+                                containerId = Integer.parseInt(line.substring(line.indexOf("=") + 1).trim());
+                            } catch (Exception e) {}
+                            break;
+                        }
+                    }
+                }
+            }
+
+            container = containerManager.getContainerById(containerId);
+            if (container == null) {
+                ArrayList<Container> containers = containerManager.getContainers();
+                if (!containers.isEmpty()) container = containers.get(0);
+                if (container == null) {
+                    finish();
+                    return;
+                }
+            }
             containerManager.activateContainer(container);
 
             boolean wineprefixNeedsUpdate = container.getExtra("wineprefixNeedsUpdate").equals("t");
@@ -190,7 +216,6 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
             if (wineInfo != WineInfo.MAIN_WINE_INFO) rootFS.setWinePath(wineInfo.path);
 
-            String shortcutPath = getIntent().getStringExtra("shortcut_path");
             if (shortcutPath != null && !shortcutPath.isEmpty()) shortcut = new Shortcut(container, new File(shortcutPath));
 
             String graphicsDriver = container.getGraphicsDriver();
@@ -437,7 +462,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (environment != null) environment.stopEnvironmentComponents();
 
         Intent intent = getIntent();
-        if (intent.getBooleanExtra("from_shortcut", false)) {
+        if (intent.getStringExtra("shortcut_path") != null) {
             finish();
             return;
         }
@@ -676,12 +701,14 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             intent.putExtra("edit_input_controls", true);
             intent.putExtra("selected_profile_id", position > 0 ? inputControlsManager.getProfiles().get(position - 1).id : 0);
             editInputControlsCallback = () -> {
-                ControlsProfile currentProfile = inputControlsView.getProfile();
-                int currentProfileId = currentProfile != null ? currentProfile.id : 0;
+                int previousProfileId = position > 0 ? inputControlsManager.getProfiles().get(position - 1).id : 0;
                 inputControlsManager.loadProfiles(true);
 
-                if (currentProfileId > 0) {
-                    ControlsProfile newProfile = inputControlsManager.getProfile(currentProfileId);
+                if (previousProfileId == 0 && InputControlsManager.newlyCreatedProfile != null) {
+                    showInputControls(InputControlsManager.newlyCreatedProfile);
+                }
+                else if (previousProfileId > 0) {
+                    ControlsProfile newProfile = inputControlsManager.getProfile(previousProfileId);
                     if (newProfile != null) {
                         showInputControls(newProfile);
                     }
@@ -818,13 +845,19 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
-        return !winHandler.onGenericMotionEvent(event) && !touchpadView.onExternalMouseEvent(event) && super.dispatchGenericMotionEvent(event);
+        // 1. inputControlsView.onGenericMotionEvent checks your custom mappings FIRST.
+        // 2. If it is NOT mapped, it passes to winHandler (Raw XInput).
+        // 3. If winHandler doesn't want it, it passes to the touchpad view.
+        return !inputControlsView.onGenericMotionEvent(event) && 
+               !winHandler.onGenericMotionEvent(event) && 
+               !touchpadView.onExternalMouseEvent(event) && 
+               super.dispatchGenericMotionEvent(event);
     }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        return (!inputControlsView.onKeyEvent(event) && !winHandler.onKeyEvent(event) && xServer.keyboard.onKeyEvent(event)) ||
-               (!ExternalController.isGameController(event.getDevice()) && super.dispatchKeyEvent(event));
+        if (inputControlsView.onKeyEvent(event) || winHandler.onKeyEvent(event) || xServer.keyboard.onKeyEvent(event)) return true;
+        return !ExternalController.isGameController(event.getDevice()) && super.dispatchKeyEvent(event);
     }
 
     public InputControlsView getInputControlsView() {

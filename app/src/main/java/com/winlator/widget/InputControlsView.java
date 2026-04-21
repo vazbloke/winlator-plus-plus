@@ -271,25 +271,60 @@ public class InputControlsView extends View {
 
     private void createMouseMoveTimer() {
         if (profile != null && mouseMoveTimer == null) {
-            final float cursorSpeed = profile.getCursorSpeed();
+            
+            final float baseMultiplier = 15f * profile.getCursorSpeed();
+            
+            // THE BLEND WEIGHTS (Must add up to 1.0f)
+            // Increase linearWeight for more immediate responsiveness.
+            // Increase expWeight for more sniper precision at low tilts.
+            final float linearWeight = 0.4f; 
+            final float expWeight = 0.6f;
+
             mouseMoveTimer = new Timer();
             mouseMoveTimer.schedule(new TimerTask() {
+                private float accumX = 0f;
+                private float accumY = 0f;
+
                 @Override
                 public void run() {
-                    xServer.injectPointerMoveDelta((int)(mouseMoveOffset.x * 10 * cursorSpeed), (int)(mouseMoveOffset.y * 10 * cursorSpeed));
+                    // Cache the volatile offsets to local variables for faster memory access
+                    float x = mouseMoveOffset.x;
+                    float y = mouseMoveOffset.y;
+
+                    // HARDWARE-OPTIMIZED BLENDED CURVE
+                    // Formula: x * (linear + (exp * |x|))
+                    float curveX = x * (linearWeight + (expWeight * Math.abs(x)));
+                    float curveY = y * (linearWeight + (expWeight * Math.abs(y)));
+
+                    float exactDx = curveX * baseMultiplier;
+                    float exactDy = curveY * baseMultiplier;
+
+                    accumX += exactDx;
+                    accumY += exactDy;
+
+                    int dx = (int) accumX;
+                    int dy = (int) accumY;
+
+                    if (dx != 0 || dy != 0) {
+                        accumX -= dx;
+                        accumY -= dy;
+                        xServer.injectPointerMoveDelta(dx, dy);
+                    }
                 }
             }, 0, 1000 / 60);
         }
     }
 
     private void processJoystickInput(ExternalController controller) {
+        // Most hardware already handles the deadzone on the OS level
+        float DEADZONE_OVERRIDE = 0.0f;
         ExternalControllerBinding controllerBinding;
         final int[] axes = {MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ, MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y};
         GamepadState state = controller.getGamepadState();
         final float[] values = {state.thumbLX, state.thumbLY, state.thumbRX, state.thumbRY, state.getDPadX(), state.getDPadY()};
 
         for (byte i = 0; i < axes.length; i++) {
-            if (Math.abs(values[i]) > ControlElement.STICK_DEAD_ZONE) {
+            if (Math.abs(values[i]) > DEADZONE_OVERRIDE) {
                 controllerBinding = controller.getControllerBinding(ExternalControllerBinding.getKeyCodeForAxis(axes[i], Mathf.sign(values[i])));
                 if (controllerBinding != null) handleInputEvent(controllerBinding.getBinding(), true, values[i]);
             }

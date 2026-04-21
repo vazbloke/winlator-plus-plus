@@ -101,39 +101,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
     }
 
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        String shortcutPath = intent.getStringExtra("shortcut_path");
-        if (shortcutPath != null && !shortcutPath.isEmpty()) {
-            handleShortcutLaunch(shortcutPath);
-        }
-    }
-
-    private void handleShortcutLaunch(String shortcutPath) {
-        File file = new File(shortcutPath);
-        if (file.exists()) {
-            int containerIdFromShortcut = -1;
-            for (String line : FileUtils.readLines(file, true)) {
-                if (line.startsWith("ContainerId=")) {
-                    try {
-                        String idValue = line.substring(line.indexOf("=") + 1).trim();
-                        containerIdFromShortcut = Integer.parseInt(idValue);
-                    } catch (Exception e) {}
-                    break;
-                }
-            }
-
-            if (containerIdFromShortcut != -1) {
-                Intent xServerIntent = new Intent(this, XServerDisplayActivity.class);
-                xServerIntent.putExtra("container_id", containerIdFromShortcut);
-                xServerIntent.putExtra("shortcut_path", file.getPath());
-                xServerIntent.putExtra("from_shortcut", true);
-                startActivity(xServerIntent);
-            }
-        }
-    }
 
     @Override
     protected void attachBaseContext(Context newBase) {

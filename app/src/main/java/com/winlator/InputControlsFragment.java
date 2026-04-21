@@ -51,6 +51,7 @@ public class InputControlsFragment extends Fragment {
     private static final String INPUT_CONTROLS_URL = "https://raw.githubusercontent.com/brunodev85/winlator/main/input_controls/%s";
     private InputControlsManager manager;
     private ControlsProfile currentProfile;
+    private ControlsProfile newlyCreatedProfile;
     private Runnable updateLayout;
     private Callback<ControlsProfile> importProfileCallback;
     private final int selectedProfileId;
@@ -147,7 +148,8 @@ public class InputControlsFragment extends Fragment {
         sbOverlayOpacity.setValue(preferences.getFloat("overlay_opacity", InputControlsView.DEFAULT_OVERLAY_OPACITY) * 100);
 
         view.findViewById(R.id.BTAddProfile).setOnClickListener((v) -> ContentDialog.prompt(context, R.string.profile_name, null, (name) -> {
-            currentProfile = manager.createProfile(name);
+            InputControlsManager.newlyCreatedProfile = manager.createProfile(name);
+            currentProfile = InputControlsManager.newlyCreatedProfile;
             loadProfileSpinner(sProfile);
             updateLayout.run();
         }));
@@ -294,6 +296,16 @@ public class InputControlsFragment extends Fragment {
             ControlsProfile profile = profiles.get(i);
             if (profile == currentProfile) selectedPosition = i + 1;
             values.add(profile.getName());
+        }
+
+        if (selectedPosition == 0 && InputControlsManager.newlyCreatedProfile != null) {
+            for (int i = 0; i < profiles.size(); i++) {
+                if (profiles.get(i).id == InputControlsManager.newlyCreatedProfile.id) {
+                    selectedPosition = i + 1;
+                    currentProfile = profiles.get(i);
+                    break;
+                }
+            }
         }
 
         spinner.setAdapter(new ArrayAdapter<>(getContext(), android.R.layout.simple_spinner_dropdown_item, values));
