@@ -58,6 +58,13 @@ public class InputControlsView extends View {
     private Timer mouseMoveTimer;
     private final PointF mouseMoveOffset = new PointF();
     private boolean showTouchscreenControls = true;
+    
+    // ADD THESE TWO LINES: Track the individual physical hardware inputs
+    private final java.util.concurrent.ConcurrentHashMap<Integer, Float> mouseXSources = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.ConcurrentHashMap<Integer, Float> mouseYSources = new java.util.concurrent.ConcurrentHashMap<>();
+
+    // Tracks if an axis is resting (0), pushed negative (-1), or positive (1)
+    private final byte[] activeAxisStates = new byte[64];
 
     public InputControlsView(Context context) {
         super(context);
@@ -377,24 +384,68 @@ public class InputControlsView extends View {
         }
     }
 
-    private void processJoystickInput(ExternalController controller) {
-        // Most hardware already handles the deadzone on the OS level
-        float DEADZONE_OVERRIDE = 0.0f;
-        ExternalControllerBinding controllerBinding;
+private void processJoystickInput(ExternalController controller) {
+        // A solid deadzone prevents stick drift from accidentally typing keyboard keys
+        float DIGITAL_DEADZONE = 0.3f; 
+        
         final int[] axes = {MotionEvent.AXIS_X, MotionEvent.AXIS_Y, MotionEvent.AXIS_Z, MotionEvent.AXIS_RZ, MotionEvent.AXIS_HAT_X, MotionEvent.AXIS_HAT_Y};
         GamepadState state = controller.getGamepadState();
         final float[] values = {state.thumbLX, state.thumbLY, state.thumbRX, state.thumbRY, state.getDPadX(), state.getDPadY()};
 
         for (byte i = 0; i < axes.length; i++) {
-            if (Math.abs(values[i]) > DEADZONE_OVERRIDE) {
-                controllerBinding = controller.getControllerBinding(ExternalControllerBinding.getKeyCodeForAxis(axes[i], Mathf.sign(values[i])));
-                if (controllerBinding != null) handleInputEvent(controllerBinding.getBinding(), true, values[i]);
+            int axis = axes[i];
+            float value = values[i];
+            byte currentSign = Mathf.sign(value);
+            
+            // Look up what this direction is mapped to
+            int keyCode = ExternalControllerBinding.getKeyCodeForAxis(axis, currentSign);
+            ExternalControllerBinding controllerBinding = controller.getControllerBinding(keyCode);
+            
+            // Check if this specific mapping is an analog mouse movement
+            boolean isMouseMovement = controllerBinding != null && 
+                (controllerBinding.getBinding() == Binding.MOUSE_MOVE_LEFT || 
+                 controllerBinding.getBinding() == Binding.MOUSE_MOVE_RIGHT || 
+                 controllerBinding.getBinding() == Binding.MOUSE_MOVE_UP || 
+                 controllerBinding.getBinding() == Binding.MOUSE_MOVE_DOWN);
+
+            // If it's a keyboard key, enforce the deadzone. If it's a mouse, allow micro-movements.
+            byte effectiveSign = 0;
+            if (isMouseMovement) {
+                effectiveSign = (Math.abs(value) > 0.0f) ? currentSign : 0;
+            } else {
+                effectiveSign = (Math.abs(value) > DIGITAL_DEADZONE) ? currentSign : 0;
             }
-            else {
-                controllerBinding = controller.getControllerBinding(ExternalControllerBinding.getKeyCodeForAxis(axes[i], (byte) 1));
-                if (controllerBinding != null) handleInputEvent(controllerBinding.getBinding(), false, values[i]);
-                controllerBinding = controller.getControllerBinding(ExternalControllerBinding.getKeyCodeForAxis(axes[i], (byte)-1));
-                if (controllerBinding != null) handleInputEvent(controllerBinding.getBinding(), false, values[i]);
+
+            byte previousSign = activeAxisStates[axis];
+
+            // 1. STATE CHANGE: The stick was pushed past the deadzone, or returned to center
+            if (effectiveSign != previousSign) {
+                
+                // If it was previously pushed, SEND A KEY RELEASE for the old direction
+                if (previousSign != 0) {
+                    int keyCodeRel = ExternalControllerBinding.getKeyCodeForAxis(axis, previousSign);
+                    ExternalControllerBinding bindRel = controller.getControllerBinding(keyCodeRel);
+                    if (bindRel != null) handleInputEvent(bindRel.getBinding(), false, value, keyCodeRel);
+                }
+
+                // If it is newly pushed, SEND A KEY PRESS for the new direction
+                if (effectiveSign != 0) {
+                    int keyCodePress = ExternalControllerBinding.getKeyCodeForAxis(axis, effectiveSign);
+                    ExternalControllerBinding bindPress = controller.getControllerBinding(keyCodePress);
+                    if (bindPress != null) handleInputEvent(bindPress.getBinding(), true, value, keyCodePress);
+                }
+
+                // Save the new state
+                activeAxisStates[axis] = effectiveSign;
+            } 
+            
+            // 2. CONTINUOUS HOLD: The stick hasn't changed state.
+            else if (effectiveSign != 0) {
+                // Keyboards should do NOTHING here to prevent input flooding.
+                // But Mouse movements MUST continuously send their updated float values for aiming!
+                if (isMouseMovement) {
+                    handleInputEvent(controllerBinding.getBinding(), true, value, keyCode);
+                }
             }
         }
     }
@@ -407,11 +458,11 @@ public class InputControlsView extends View {
                 GamepadState state = controller.getGamepadState();
                 ExternalControllerBinding controllerBinding;
                 controllerBinding = controller.getControllerBinding(KeyEvent.KEYCODE_BUTTON_L2);
-                if (controllerBinding != null) handleInputEvent(controllerBinding.getBinding(), state.isPressed(ExternalController.IDX_BUTTON_L2));
+                if (controllerBinding != null) handleInputEvent(controllerBinding.getBinding(), state.isPressed(ExternalController.IDX_BUTTON_L2), 0, KeyEvent.KEYCODE_BUTTON_L2);
 
                 controllerBinding = controller.getControllerBinding(KeyEvent.KEYCODE_BUTTON_R2);
-                if (controllerBinding != null) handleInputEvent(controllerBinding.getBinding(), state.isPressed(ExternalController.IDX_BUTTON_R2));
-
+                if (controllerBinding != null) handleInputEvent(controllerBinding.getBinding(), state.isPressed(ExternalController.IDX_BUTTON_R2), 0, KeyEvent.KEYCODE_BUTTON_R2);
+                
                 processJoystickInput(controller);
                 return true;
             }
@@ -521,10 +572,10 @@ public class InputControlsView extends View {
                     int action = event.getAction();
 
                     if (action == KeyEvent.ACTION_DOWN) {
-                        handleInputEvent(controllerBinding.getBinding(), true);
+                        handleInputEvent(controllerBinding.getBinding(), true, 0, event.getKeyCode());
                     }
                     else if (action == KeyEvent.ACTION_UP) {
-                        handleInputEvent(controllerBinding.getBinding(), false);
+                        handleInputEvent(controllerBinding.getBinding(), false, 0, event.getKeyCode());
                     }
                     return true;
                 }
@@ -533,17 +584,23 @@ public class InputControlsView extends View {
         return false;
     }
 
+    // Keep backward compatibility for touch controls
     public void handleInputEvent(Binding[] bindings, boolean isActionDown) {
         for (Binding binding : bindings) {
-            if (binding != Binding.NONE) handleInputEvent(binding, isActionDown, 0);
+            if (binding != Binding.NONE) handleInputEvent(binding, isActionDown, 0, 0);
         }
     }
 
     public void handleInputEvent(Binding binding, boolean isActionDown) {
-        handleInputEvent(binding, isActionDown, 0);
+        handleInputEvent(binding, isActionDown, 0, 0);
     }
 
     public void handleInputEvent(Binding binding, boolean isActionDown, float offset) {
+        handleInputEvent(binding, isActionDown, offset, 0);
+    }
+
+    // THE NEW MASTER HANDLER
+    public void handleInputEvent(Binding binding, boolean isActionDown, float offset, int sourceId) {
         if (binding.isGamepad()) {
             WinHandler winHandler = xServer != null ? xServer.getWinHandler() : null;
             GamepadState state = profile.getGamepadState();
@@ -573,12 +630,34 @@ public class InputControlsView extends View {
         }
         else {
             if (binding == Binding.MOUSE_MOVE_LEFT || binding == Binding.MOUSE_MOVE_RIGHT) {
-                mouseMoveOffset.x = isActionDown ? (offset != 0 ? offset : (binding == Binding.MOUSE_MOVE_LEFT ? -1 : 1)) : 0;
-                if (isActionDown) createMouseMoveTimer();
+                if (isActionDown) {
+                    // Extract true magnitude and apply binding direction
+                    float magnitude = offset != 0 ? Math.abs(offset) : 1f;
+                    mouseXSources.put(sourceId, binding == Binding.MOUSE_MOVE_LEFT ? -magnitude : magnitude);
+                } else {
+                    mouseXSources.remove(sourceId); // Remove only THIS specific physical button/stick
+                }
+                
+                // Sum all active inputs (allows both joysticks to work together)
+                float totalX = 0f;
+                for (float v : mouseXSources.values()) totalX += v;
+                mouseMoveOffset.x = Math.max(-1f, Math.min(1f, totalX)); // Clamp -1 to 1
+                
+                if (isActionDown || totalX != 0) createMouseMoveTimer();
             }
             else if (binding == Binding.MOUSE_MOVE_DOWN || binding == Binding.MOUSE_MOVE_UP) {
-                mouseMoveOffset.y = isActionDown ? (offset != 0 ? offset : (binding == Binding.MOUSE_MOVE_UP ? -1 : 1)) : 0;
-                if (isActionDown) createMouseMoveTimer();
+                if (isActionDown) {
+                    float magnitude = offset != 0 ? Math.abs(offset) : 1f;
+                    mouseYSources.put(sourceId, binding == Binding.MOUSE_MOVE_UP ? -magnitude : magnitude);
+                } else {
+                    mouseYSources.remove(sourceId);
+                }
+                
+                float totalY = 0f;
+                for (float v : mouseYSources.values()) totalY += v;
+                mouseMoveOffset.y = Math.max(-1f, Math.min(1f, totalY)); 
+                
+                if (isActionDown || totalY != 0) createMouseMoveTimer();
             }
             else {
                 Pointer.Button pointerButton = binding.getPointerButton();
