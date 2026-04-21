@@ -98,7 +98,7 @@ public class InputControlsFragment extends Fragment {
         final SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
 
         currentProfile = selectedProfileId > 0 ? manager.getProfile(selectedProfileId) : null;
-        manager.bufferPreviouslyInteractedProfileId = selectedProfileId;
+        manager.previouslyInteractedProfileId = selectedProfileId;
 
         final Spinner sProfile = view.findViewById(R.id.SProfile);
         loadProfileSpinner(sProfile);
@@ -287,9 +287,9 @@ public class InputControlsFragment extends Fragment {
             values.add(profile.getName());
         }
 
-        if (selectedPosition == 0 && InputControlsManager.bufferPreviouslyInteractedProfileId != 0) {
+        if (selectedPosition == 0 && InputControlsManager.previouslyInteractedProfileId != 0) {
             for (int i = 0; i < profiles.size(); i++) {
-                if (profiles.get(i).id == InputControlsManager.bufferPreviouslyInteractedProfileId) {
+                if (profiles.get(i).id == InputControlsManager.previouslyInteractedProfileId) {
                     selectedPosition = i + 1;
                     currentProfile = profiles.get(i);
                     break;
@@ -305,7 +305,7 @@ public class InputControlsFragment extends Fragment {
                 currentProfile = null;
                 if (position > 0) {
                     currentProfile = profiles.get(position - 1);
-                    InputControlsManager.bufferPreviouslyInteractedProfileId = currentProfile.id;
+                    InputControlsManager.previouslyInteractedProfileId = currentProfile.id;
                 }
                 updateLayout.run();
             }

@@ -701,15 +701,15 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             intent.putExtra("edit_input_controls", true);
             intent.putExtra("selected_profile_id", position > 0 ? inputControlsManager.getProfiles().get(position - 1).id : 0);
             editInputControlsCallback = () -> {
-                int previousProfileId = position > 0 ? inputControlsManager.getProfiles().get(position - 1).id : 0;
+                int selectedProfileId = position > 0 ? inputControlsManager.getProfiles().get(position - 1).id : 0;
                 inputControlsManager.loadProfiles(true);
 
-                if (previousProfileId == 0 && InputControlsManager.bufferPreviouslyInteractedProfileId != 0) {
-                    ControlsProfile profile = inputControlsManager.getProfile(InputControlsManager.bufferPreviouslyInteractedProfileId);
+                if (selectedProfileId == 0 && InputControlsManager.previouslyInteractedProfileId != 0) {
+                    ControlsProfile profile = inputControlsManager.getProfile(InputControlsManager.previouslyInteractedProfileId);
                     if (profile != null) showInputControls(profile);
                 }
-                else if (previousProfileId > 0) {
-                    ControlsProfile newProfile = inputControlsManager.getProfile(previousProfileId);
+                else if (selectedProfileId > 0) {
+                    ControlsProfile newProfile = inputControlsManager.getProfile(selectedProfileId);
                     if (newProfile != null) {
                         showInputControls(newProfile);
                     }

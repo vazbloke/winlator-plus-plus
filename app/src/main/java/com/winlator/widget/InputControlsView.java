@@ -274,31 +274,93 @@ public class InputControlsView extends View {
             
             final float baseMultiplier = 15f * profile.getCursorSpeed();
             
-            // THE BLEND WEIGHTS (Must add up to 1.0f)
-            // Increase linearWeight for more immediate responsiveness.
-            // Increase expWeight for more sniper precision at low tilts.
+            // --- OLD STYLE CONSTANTS (Blended Curve + Ramp Acceleration) ---
             final float linearWeight = 0.4f; 
             final float expWeight = 0.6f;
+            final float accelThresholdSq = 0.95f * 0.95f; 
+            final float maxAccel = 2.5f; 
+            final float accelRate = 0.05f;
 
             mouseMoveTimer = new Timer();
             mouseMoveTimer.schedule(new TimerTask() {
+                
+                // Shared Accumulator
                 private float accumX = 0f;
                 private float accumY = 0f;
 
+                // Old Style State Variables
+                private float currentAccel = 1.0f;
+
+                // New Style State Variables (Air Hockey Drift)
+                private float currentSpeed = 0f;
+                private float currentAngle = 0f;
+                private float angularVelocity = 0f;
+
                 @Override
                 public void run() {
-                    // Cache the volatile offsets to local variables for faster memory access
                     float x = mouseMoveOffset.x;
                     float y = mouseMoveOffset.y;
+                    
+                    float exactDx = 0f;
+                    float exactDy = 0f;
 
-                    // HARDWARE-OPTIMIZED BLENDED CURVE
-                    // Formula: x * (linear + (exp * |x|))
-                    float curveX = x * (linearWeight + (expWeight * Math.abs(x)));
-                    float curveY = y * (linearWeight + (expWeight * Math.abs(y)));
+                    // --- THE TOGGLE FLAG ---
+                    // TODO: Replace this with your actual preference fetcher.
+                    // e.g., boolean useAirHockeyPhysics = activity.getPreferences().getBoolean("enable_inertia", false);
+                    boolean useAirHockeyPhysics = false; 
 
-                    float exactDx = curveX * baseMultiplier;
-                    float exactDy = curveY * baseMultiplier;
+                    if (useAirHockeyPhysics) {
+                        // =======================================================
+                        // NEW STYLE: Curvilinear "Air Hockey" Drift
+                        // =======================================================
+                        if (Math.abs(x) > 0.05f || Math.abs(y) > 0.05f) {
+                            float inputSpeed = (float) Math.hypot(x, y) * baseMultiplier;
+                            float inputAngle = (float) Math.atan2(y, x);
 
+                            float angleDiff = inputAngle - currentAngle;
+                            while (angleDiff <= -Math.PI) angleDiff += Math.PI * 2;
+                            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+
+                            angularVelocity = angleDiff;
+                            currentAngle = inputAngle;
+                            currentSpeed = inputSpeed;
+
+                            exactDx = x * baseMultiplier;
+                            exactDy = y * baseMultiplier;
+                        } 
+                        else if (currentSpeed > 0.1f) {
+                            currentSpeed *= 0.85f; 
+                            angularVelocity *= 0.92f; 
+                            currentAngle += angularVelocity;
+
+                            exactDx = (float) Math.cos(currentAngle) * currentSpeed;
+                            exactDy = (float) Math.sin(currentAngle) * currentSpeed;
+                        } 
+                        else {
+                            currentSpeed = 0f;
+                            angularVelocity = 0f;
+                        }
+                    } 
+                    else {
+                        // =======================================================
+                        // OLD STYLE: Blended Curve with Time-Based Ramp-Up
+                        // =======================================================
+                        float magnitudeSq = (x * x) + (y * y);
+
+                        if (magnitudeSq > accelThresholdSq) {
+                            currentAccel = Math.min(maxAccel, currentAccel + accelRate);
+                        } else {
+                            currentAccel = 1.0f;
+                        }
+
+                        float curveX = x * (linearWeight + (expWeight * Math.abs(x)));
+                        float curveY = y * (linearWeight + (expWeight * Math.abs(y)));
+
+                        exactDx = curveX * baseMultiplier * currentAccel;
+                        exactDy = curveY * baseMultiplier * currentAccel;
+                    }
+
+                    // --- SHARED ACCUMULATOR & INJECTION ---
                     accumX += exactDx;
                     accumY += exactDy;
 
