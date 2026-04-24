@@ -381,32 +381,8 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
             sBindingType.setSelection(2, false);
         }
 
-        sBinding.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                Binding binding = Binding.NONE;
-                switch (sBindingType.getSelectedItemPosition()) {
-                    case 0:
-                        binding = Binding.keyboardBindingValues()[position];
-                        break;
-                    case 1:
-                        binding = Binding.mouseBindingValues()[position];
-                        break;
-                    case 2:
-                        binding = Binding.gamepadBindingValues()[position];
-                        break;
-                }
-
-                if (binding != element.getBindingAt(index)) {
-                    element.setBindingAt(index, binding);
-                    profile.save();
-                    inputControlsView.invalidate();
-                }
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
-        });
+        // --- NEW NAMED INNER CLASS BINDING FIX ---
+        sBinding.setOnItemSelectedListener(new BindingSelectionListener(sBindingType, element, index));
 
         update.run();
         container.addView(view);
@@ -483,5 +459,43 @@ public class ControlsEditorActivity extends AppCompatActivity implements View.On
 
             parent.addView(imageView);
         }
+    }
+
+    // --- NEW NAMED INNER CLASS TO FIX THE R8 COMPILER CACHE BUG ---
+    private class BindingSelectionListener implements AdapterView.OnItemSelectedListener {
+        private final Spinner sBindingType;
+        private final ControlElement element;
+        private final int index;
+
+        public BindingSelectionListener(Spinner sBindingType, ControlElement element, int index) {
+            this.sBindingType = sBindingType;
+            this.element = element;
+            this.index = index;
+        }
+
+        @Override
+        public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+            Binding binding = Binding.NONE;
+            switch (sBindingType.getSelectedItemPosition()) {
+                case 0:
+                    binding = Binding.keyboardBindingValues()[position];
+                    break;
+                case 1:
+                    binding = Binding.mouseBindingValues()[position];
+                    break;
+                case 2:
+                    binding = Binding.gamepadBindingValues()[position];
+                    break;
+            }
+
+            if (binding != element.getBindingAt(index)) {
+                element.setBindingAt(index, binding);
+                profile.save();
+                inputControlsView.invalidate();
+            }
+        }
+
+        @Override
+        public void onNothingSelected(AdapterView<?> parent) {}
     }
 }

@@ -108,7 +108,7 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
         DividerItemDecoration itemDecoration = new DividerItemDecoration(this, DividerItemDecoration.VERTICAL);
         itemDecoration.setDrawable(ContextCompat.getDrawable(this, R.drawable.list_item_divider));
         recyclerView.addItemDecoration(itemDecoration);
-        recyclerView.setAdapter(adapter = new ControllerBindingsAdapter());
+        recyclerView.setAdapter(adapter = new ControllerBindingsAdapter(this));
         updateEmptyTextView();
     }
 
@@ -254,8 +254,10 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
         return true;
     }
 
-    private class ControllerBindingsAdapter extends RecyclerView.Adapter<ControllerBindingsAdapter.ViewHolder> {
-        private class ViewHolder extends RecyclerView.ViewHolder {
+    private static class ControllerBindingsAdapter extends RecyclerView.Adapter<ControllerBindingsAdapter.ViewHolder> {
+        private final ExternalControllerBindingsActivity activity;
+
+        private static class ViewHolder extends RecyclerView.ViewHolder {
             private final ImageButton removeButton;
             private final TextView title;
             private final Spinner bindingType;
@@ -270,6 +272,10 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
             }
         }
 
+        public ControllerBindingsAdapter(ExternalControllerBindingsActivity activity) {
+            this.activity = activity;
+        }
+
         @Override
         public final ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
             return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.external_controller_binding_list_item, parent, false));
@@ -277,24 +283,24 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
 
         @Override
         public void onBindViewHolder(ViewHolder holder, int position) {
-            final ExternalControllerBinding item = controller.getControllerBindingAt(position);
+            final ExternalControllerBinding item = activity.controller.getControllerBindingAt(position);
             holder.title.setText(item.toString());
             loadBindingSpinner(holder, item);
             holder.removeButton.setOnClickListener((view) -> {
-                controller.removeControllerBinding(item);
-                profile.save();
+                activity.controller.removeControllerBinding(item);
+                activity.profile.save();
                 notifyDataSetChanged();
-                updateEmptyTextView();
+                activity.updateEmptyTextView();
             });
         }
 
         @Override
         public final int getItemCount() {
-            return controller.getControllerBindingCount();
+            return activity.controller.getControllerBindingCount();
         }
 
         private void loadBindingSpinner(ViewHolder holder, final ExternalControllerBinding item) {
-            final Context $this = ExternalControllerBindingsActivity.this;
+            final Context context = activity;
 
             Runnable update = () -> {
                 String[] bindingEntries = null;
@@ -310,19 +316,11 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
                         break;
                 }
 
-                holder.binding.setAdapter(new ArrayAdapter<>($this, android.R.layout.simple_spinner_dropdown_item, bindingEntries));
+                holder.binding.setAdapter(new ArrayAdapter<>(context, android.R.layout.simple_spinner_dropdown_item, bindingEntries));
                 AppUtils.setSpinnerSelectionFromValue(holder.binding, item.getBinding().toString());
             };
 
-            holder.bindingType.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                @Override
-                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                    update.run();
-                }
-
-                @Override
-                public void onNothingSelected(AdapterView<?> parent) {}
-            });
+            holder.bindingType.setOnItemSelectedListener(new BindingTypeItemSelectedListener(update));
 
             Binding selectedBinding = item.getBinding();
             if (selectedBinding.isKeyboard()) {
@@ -335,34 +333,62 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
                 holder.bindingType.setSelection(2, false);
             }
 
-            holder.binding.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                @Override
-                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                    Binding binding = Binding.NONE;
-                    switch (holder.bindingType.getSelectedItemPosition()) {
-                        case 0:
-                            binding = Binding.keyboardBindingValues()[position];
-                            break;
-                        case 1:
-                            binding = Binding.mouseBindingValues()[position];
-                            break;
-                        case 2:
-                            binding = Binding.gamepadBindingValues()[position];
-                            break;
-                    }
-
-                    if (binding != item.getBinding()) {
-                        item.setBinding(binding);
-                        profile.save();
-                    }
-                }
-
-                @Override
-                public void onNothingSelected(AdapterView<?> parent) {}
-            });
+            holder.binding.setOnItemSelectedListener(new BindingItemSelectedListener(holder, item, activity.profile));
 
             update.run();
         }
+    }
+
+    private static class BindingTypeItemSelectedListener implements AdapterView.OnItemSelectedListener {
+        private final Runnable update;
+
+        public BindingTypeItemSelectedListener(Runnable update) {
+            this.update = update;
+        }
+
+        @Override
+        public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+            update.run();
+        }
+
+        @Override
+        public void onNothingSelected(AdapterView<?> parent) {}
+    }
+
+    private static class BindingItemSelectedListener implements AdapterView.OnItemSelectedListener {
+        private final ControllerBindingsAdapter.ViewHolder holder;
+        private final ExternalControllerBinding item;
+        private final ControlsProfile profile;
+
+        public BindingItemSelectedListener(ControllerBindingsAdapter.ViewHolder holder, ExternalControllerBinding item, ControlsProfile profile) {
+            this.holder = holder;
+            this.item = item;
+            this.profile = profile;
+        }
+
+        @Override
+        public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+            Binding binding = Binding.NONE;
+            switch (holder.bindingType.getSelectedItemPosition()) {
+                case 0:
+                    binding = Binding.keyboardBindingValues()[position];
+                    break;
+                case 1:
+                    binding = Binding.mouseBindingValues()[position];
+                    break;
+                case 2:
+                    binding = Binding.gamepadBindingValues()[position];
+                    break;
+            }
+
+            if (binding != item.getBinding()) {
+                item.setBinding(binding);
+                profile.save();
+            }
+        }
+
+        @Override
+        public void onNothingSelected(AdapterView<?> parent) {}
     }
 
     private void updateEmptyTextView() {

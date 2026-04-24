@@ -60,6 +60,9 @@ public class InputControlsView extends View {
     private boolean showTouchscreenControls = true;
 
     private boolean isMouseDampenerHeld = false;
+
+    // Tracks if Twin-Stick Infection mode is currently toggled ON
+    private boolean twinShooterModeActive = false;
     
     // ADD THESE TWO LINES: Track the individual physical hardware inputs
     private final java.util.concurrent.ConcurrentHashMap<Integer, Float> mouseXSources = new java.util.concurrent.ConcurrentHashMap<>();
@@ -328,13 +331,58 @@ public class InputControlsView extends View {
                     float x = mouseMoveOffset.x;
                     float y = mouseMoveOffset.y;
 
+                    // --- TWIN-STICK INFECTION MODE ---
+                    if (twinShooterModeActive) {
+                        float joyX = mouseMoveOffset.x;
+                        float joyY = mouseMoveOffset.y;
+                        // Apply a small deadzone so releasing the stick leaves the cursor aimed
+                        if (Math.abs(joyX) > 0.1f || Math.abs(joyY) > 0.1f) {
+                            if (xServer != null && xServer.screenInfo != null) {
+                                int w = xServer.screenInfo.width;
+                                int h = xServer.screenInfo.height;
+                                float cx = w / 2.0f;
+                                float cy = h / 2.0f;
+
+                                // 1. Get the exact angle of the joystick
+                                double angle = Math.atan2(joyY, joyX);
+                                float dirX = (float) Math.cos(angle);
+                                float dirY = (float) Math.sin(angle);
+
+                                // 2. Ray-Box Intersection: Find distance to the closest edge
+                                float tx = Float.MAX_VALUE;
+                                if (dirX > 0) tx = (w - cx) / dirX;
+                                else if (dirX < 0) tx = -cx / dirX;
+
+                                float ty = Float.MAX_VALUE;
+                                if (dirY > 0) ty = (h - cy) / dirY;
+                                else if (dirY < 0) ty = -cy / dirY;
+
+                                float t = Math.min(tx, ty);
+
+                                // 3. Place the cursor at the exact collision point
+                                int targetX = (int) (cx + t * dirX);
+                                int targetY = (int) (cy + t * dirY);
+
+                                // Keep it 2 pixels inside the border so the Windows mouse 
+                                // doesn't glitch or get trapped by the invisible X11 bounds
+                                targetX = Math.max(2, Math.min(targetX, w - 3));
+                                targetY = Math.max(2, Math.min(targetY, h - 3));
+
+                                // Inject absolute coordinates instead of relative deltas
+                                xServer.injectPointerMove(targetX, targetY);
+                            }
+                        }
+                        // RETURN EARLY: Ignore all standard acceleration/momentum math!
+                        return; 
+                    }
+
                     // --- THE DPI CLUTCH ---
                     // Create a local multiplier so we don't permanently alter the base.
                     float activeMultiplier = baseMultiplier;
 
                     if (isMouseDampenerHeld) {
                         // Crush the speed down to 30% for ultra-fine aiming
-                        activeMultiplier *= 0.3f;
+                        activeMultiplier *= 0.45f;
                     }
                     
                     float exactDx = 0f;
@@ -729,8 +777,41 @@ public class InputControlsView extends View {
                 
                 if (isActionDown || totalY != 0) createMouseMoveTimer();
             }
-            else if (binding == Binding.MOUSE_MIDDLE_BUTTON) {
+            else if (binding == Binding.MOUSE_DAMPEN_POINTER) {
                 isMouseDampenerHeld = isActionDown;
+            }
+            else if (binding == Binding.MOUSE_CLICKANDHOLD) {
+                if (isActionDown) {
+                    // Lock the left mouse button down
+                    xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
+                } else {
+                    // Release the button when you let go of the physical key
+                    xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
+                }
+            }
+            else if (binding == Binding.MOUSE_DOUBLE_CLICK) {
+                // We only want to trigger this once when the button is PUSHED,
+                // we do nothing when it is released.
+                if (isActionDown) {
+                    // 1. Fire the first click instantly
+                    xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
+                    xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
+
+                    // 2. Schedule the second click 50 milliseconds later
+                    // so Windows correctly registers it as a human double-click
+                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                        if (xServer != null) {
+                            xServer.injectPointerButtonPress(Pointer.Button.BUTTON_LEFT);
+                            xServer.injectPointerButtonRelease(Pointer.Button.BUTTON_LEFT);
+                        }
+                    }, 50);
+                }
+            }
+            else if (binding == Binding.MOUSE_TOGGLE_TWINSHOOTER) {
+                // We only want to trigger the toggle when the button is PUSHED down
+                if (isActionDown) {
+                    twinShooterModeActive = !twinShooterModeActive;
+                }
             }
             else {
                 Pointer.Button pointerButton = binding.getPointerButton();
