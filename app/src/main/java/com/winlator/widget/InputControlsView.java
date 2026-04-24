@@ -58,6 +58,8 @@ public class InputControlsView extends View {
     private Timer mouseMoveTimer;
     private final PointF mouseMoveOffset = new PointF();
     private boolean showTouchscreenControls = true;
+
+    private boolean isMouseDampenerHeld = false;
     
     // ADD THESE TWO LINES: Track the individual physical hardware inputs
     private final java.util.concurrent.ConcurrentHashMap<Integer, Float> mouseXSources = new java.util.concurrent.ConcurrentHashMap<>();
@@ -325,65 +327,35 @@ public class InputControlsView extends View {
 
                     float x = mouseMoveOffset.x;
                     float y = mouseMoveOffset.y;
+
+                    // --- THE DPI CLUTCH ---
+                    // Create a local multiplier so we don't permanently alter the base.
+                    float activeMultiplier = baseMultiplier;
+
+                    if (isMouseDampenerHeld) {
+                        // Crush the speed down to 30% for ultra-fine aiming
+                        activeMultiplier *= 0.3f;
+                    }
                     
                     float exactDx = 0f;
                     float exactDy = 0f;
 
-                    // --- THE TOGGLE FLAG ---
-                    // TODO: Replace this with your actual preference fetcher.
-                    // e.g., boolean useAirHockeyPhysics = activity.getPreferences().getBoolean("enable_inertia", false);
-                    boolean useAirHockeyPhysics = false; 
+                    // =======================================================
+                    // Blended Curve with Time-Based Ramp-Up
+                    // =======================================================
+                    float magnitudeSq = (x * x) + (y * y);
 
-                    if (useAirHockeyPhysics) {
-                        // =======================================================
-                        // NEW STYLE: Curvilinear "Air Hockey" Drift
-                        // =======================================================
-                        if (Math.abs(x) > 0.05f || Math.abs(y) > 0.05f) {
-                            float inputSpeed = (float) Math.hypot(x, y) * baseMultiplier;
-                            float inputAngle = (float) Math.atan2(y, x);
-
-                            float angleDiff = inputAngle - currentAngle;
-                            while (angleDiff <= -Math.PI) angleDiff += Math.PI * 2;
-                            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-
-                            angularVelocity = angleDiff;
-                            currentAngle = inputAngle;
-                            currentSpeed = inputSpeed;
-
-                            exactDx = x * baseMultiplier;
-                            exactDy = y * baseMultiplier;
-                        } 
-                        else if (currentSpeed > 0.1f) {
-                            currentSpeed *= 0.85f; 
-                            angularVelocity *= 0.92f; 
-                            currentAngle += angularVelocity;
-
-                            exactDx = (float) Math.cos(currentAngle) * currentSpeed;
-                            exactDy = (float) Math.sin(currentAngle) * currentSpeed;
-                        } 
-                        else {
-                            currentSpeed = 0f;
-                            angularVelocity = 0f;
-                        }
-                    } 
-                    else {
-                        // =======================================================
-                        // OLD STYLE: Blended Curve with Time-Based Ramp-Up
-                        // =======================================================
-                        float magnitudeSq = (x * x) + (y * y);
-
-                        if (magnitudeSq > accelThresholdSq) {
-                            currentAccel = Math.min(maxAccel, currentAccel + accelRate);
-                        } else {
-                            currentAccel = 1.0f;
-                        }
-
-                        float curveX = x * (linearWeight + (expWeight * Math.abs(x)));
-                        float curveY = y * (linearWeight + (expWeight * Math.abs(y)));
-
-                        exactDx = curveX * baseMultiplier * currentAccel;
-                        exactDy = curveY * baseMultiplier * currentAccel;
+                    if (magnitudeSq > accelThresholdSq) {
+                        currentAccel = Math.min(maxAccel, currentAccel + accelRate);
+                    } else {
+                        currentAccel = 1.0f;
                     }
+
+                    float curveX = x * (linearWeight + (expWeight * Math.abs(x)));
+                    float curveY = y * (linearWeight + (expWeight * Math.abs(y)));
+
+                    exactDx = curveX * activeMultiplier * currentAccel;
+                    exactDy = curveY * activeMultiplier * currentAccel;
 
                     // --- SHARED ACCUMULATOR & INJECTION ---
                     accumX += exactDx;
@@ -644,6 +616,7 @@ public class InputControlsView extends View {
             if (controller != null) {
                 int code = event.getKeyCode();
 
+
                 // Let shared Odin system keys pass
                 if (code == KeyEvent.KEYCODE_BACK ||
                     code == KeyEvent.KEYCODE_VOLUME_UP ||
@@ -755,6 +728,9 @@ public class InputControlsView extends View {
                 mouseMoveOffset.y = Math.max(-1f, Math.min(1f, totalY)); 
                 
                 if (isActionDown || totalY != 0) createMouseMoveTimer();
+            }
+            else if (binding == Binding.MOUSE_MIDDLE_BUTTON) {
+                isMouseDampenerHeld = isActionDown;
             }
             else {
                 Pointer.Button pointerButton = binding.getPointerButton();
