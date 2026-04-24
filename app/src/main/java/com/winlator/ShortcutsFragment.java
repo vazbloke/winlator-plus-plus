@@ -144,39 +144,6 @@ public class ShortcutsFragment extends BaseFileManagerFragment<Shortcut> {
         String fileName = shortcut.name + "-" + shortcut.container.id + ".desktop";
         File exportFile = new File(exportDir, fileName);
         List<String> lines = FileUtils.readLines(shortcut.file, true);
-        boolean extraDataFound = false;
-        int lastLineIndex = -1;
-
-        for (int i = 0; i < lines.size(); i++) {
-            String line = lines.get(i).trim();
-            if (line.equals("[Extra Data]")) {
-                extraDataFound = true;
-                lastLineIndex = i;
-            }
-            else if (extraDataFound && line.startsWith("[")) {
-                break;
-            }
-            else if (extraDataFound) {
-                lastLineIndex = i;
-            }
-        }
-
-        if (!extraDataFound) {
-            lines.add("");
-            lines.add("[Extra Data]");
-            lines.add("ContainerId=" + shortcut.container.id);
-        }
-        else {
-            boolean containerIdFound = false;
-            for (int i = lines.indexOf("[Extra Data]") + 1; i <= lastLineIndex; i++) {
-                if (lines.get(i).startsWith("ContainerId=")) {
-                    lines.set(i, "ContainerId=" + shortcut.container.id);
-                    containerIdFound = true;
-                    break;
-                }
-            }
-            if (!containerIdFound) lines.add(lastLineIndex + 1, "ContainerId=" + shortcut.container.id);
-        }
 
         if (FileUtils.writeLines(exportFile, lines)) {
             if (showToast) AppUtils.showToast(context, getString(R.string.shortcut_exported_to) + ": " + exportFile.getPath());

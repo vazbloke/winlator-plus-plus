@@ -113,6 +113,7 @@ public class Shortcut {
     }
 
     public void saveData() {
+        putExtra("ContainerId", String.valueOf(container.id));
         String content = "[Desktop Entry]\n";
         for (String line : FileUtils.readLines(file)) {
             if (line.contains("[Extra Data]")) break;

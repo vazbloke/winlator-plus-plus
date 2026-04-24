@@ -168,20 +168,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         if (!isGenerateWineprefix()) {
             ContainerManager containerManager = new ContainerManager(this);
 
-            int containerId = getIntent().getIntExtra("container_id", -1);
-            if (shortcutPath != null && !shortcutPath.isEmpty()) {
-                File file = new File(shortcutPath);
-                if (file.exists()) {
-                    for (String line : FileUtils.readLines(file, true)) {
-                        if (line.startsWith("ContainerId=")) {
-                            try {
-                                containerId = Integer.parseInt(line.substring(line.indexOf("=") + 1).trim());
-                            } catch (Exception e) {}
-                            break;
-                        }
-                    }
-                }
-            }
+            int containerId = getIntentContainerId(getIntent());
 
             container = containerManager.getContainerById(containerId);
             if (container == null) {
@@ -314,6 +301,60 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             }
             setupXEnvironment();
         });
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (isSameExecutable(intent)) return;
+        finish();
+        startActivity(intent);
+    }
+
+    private int getIntentContainerId(Intent intent) {
+        int containerId = intent.getIntExtra("container_id", -1);
+        String shortcutPath = intent.getStringExtra("shortcut_path");
+        if (shortcutPath != null && !shortcutPath.isEmpty()) {
+            File file = new File(shortcutPath);
+            if (file.exists()) {
+                for (String line : FileUtils.readLines(file, true)) {
+                    if (line.startsWith("ContainerId=")) {
+                        try {
+                            return Integer.parseInt(line.substring(line.indexOf("=") + 1).trim());
+                        }
+                        catch (Exception e) {}
+                        break;
+                    }
+                }
+            }
+        }
+        return containerId;
+    }
+
+    private boolean isSameExecutable(Intent intent) {
+        if (container == null || isGenerateWineprefix() || intent.getBooleanExtra("generate_wineprefix", false)) return false;
+        if (getIntentContainerId(intent) != container.id) return false;
+
+        String incomingShortcutPath = intent.getStringExtra("shortcut_path");
+        String incomingExecPath = intent.getStringExtra("exec_path");
+
+        String currentShortcutPath = getIntent().getStringExtra("shortcut_path");
+        String currentExecPath = getIntent().getStringExtra("exec_path");
+
+        boolean incomingHasShortcut = incomingShortcutPath != null && !incomingShortcutPath.isEmpty();
+        boolean incomingHasExec = incomingExecPath != null && !incomingExecPath.isEmpty();
+        boolean currentHasShortcut = currentShortcutPath != null && !currentShortcutPath.isEmpty();
+        boolean currentHasExec = currentExecPath != null && !currentExecPath.isEmpty();
+
+        if (incomingHasShortcut) {
+            return currentHasShortcut && incomingShortcutPath.equals(currentShortcutPath);
+        }
+        else if (incomingHasExec) {
+            return currentHasExec && incomingExecPath.equals(currentExecPath);
+        }
+        else {
+            return !currentHasShortcut && !currentHasExec;
+        }
     }
 
     @Override

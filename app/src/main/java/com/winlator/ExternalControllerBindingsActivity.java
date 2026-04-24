@@ -54,10 +54,10 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
 
     private static final Map<Integer, Binding> axisBindings = new HashMap<>();
     static {
-        axisBindings.put((int)ExternalControllerBinding.AXIS_X_NEGATIVE, Binding.MOUSE_MOVE_LEFT);
-        axisBindings.put((int)ExternalControllerBinding.AXIS_X_POSITIVE, Binding.MOUSE_MOVE_RIGHT);
-        axisBindings.put((int)ExternalControllerBinding.AXIS_Y_NEGATIVE, Binding.MOUSE_MOVE_DOWN);
-        axisBindings.put((int)ExternalControllerBinding.AXIS_Y_POSITIVE, Binding.MOUSE_MOVE_UP);
+        axisBindings.put((int)ExternalControllerBinding.AXIS_X_NEGATIVE, Binding.KEY_LEFT);
+        axisBindings.put((int)ExternalControllerBinding.AXIS_X_POSITIVE, Binding.KEY_RIGHT);
+        axisBindings.put((int)ExternalControllerBinding.AXIS_Y_NEGATIVE, Binding.KEY_DOWN);
+        axisBindings.put((int)ExternalControllerBinding.AXIS_Y_POSITIVE, Binding.KEY_UP);
         axisBindings.put((int)ExternalControllerBinding.AXIS_Z_NEGATIVE, Binding.MOUSE_MOVE_LEFT);
         axisBindings.put((int)ExternalControllerBinding.AXIS_Z_POSITIVE, Binding.MOUSE_MOVE_RIGHT);
         axisBindings.put((int)ExternalControllerBinding.AXIS_RZ_NEGATIVE, Binding.MOUSE_MOVE_DOWN);
@@ -66,6 +66,14 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
         axisBindings.put(KeyEvent.KEYCODE_DPAD_RIGHT, Binding.KEY_D);
         axisBindings.put(KeyEvent.KEYCODE_DPAD_UP, Binding.KEY_W);
         axisBindings.put(KeyEvent.KEYCODE_DPAD_DOWN, Binding.KEY_S);
+        // axisBindings.put(KeyEvent.KEYCODE_BUTTON_SELECT, Binding.KEY_ENTER);
+        // axisBindings.put(KeyEvent.KEYCODE_BUTTON_START, Binding.KEY_ESC);
+    }
+
+    private static final Map<Integer, Binding> padKeyBindings = new HashMap<>();
+    static {
+        padKeyBindings.put(KeyEvent.KEYCODE_BUTTON_SELECT, Binding.KEY_ENTER);
+        padKeyBindings.put(KeyEvent.KEYCODE_BUTTON_START, Binding.KEY_ESC);
     }
 
     @Override
@@ -219,7 +227,8 @@ public class ExternalControllerBindingsActivity extends AppCompatActivity {
 
             // Map the gamepad key
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-                updateControllerBinding(code, Binding.NONE);
+                Binding binding = padKeyBindings.getOrDefault(code, Binding.NONE);
+                updateControllerBinding(code, binding);
             }
             
             // Swallow the gamepad input so it doesn't trigger Android UI ghost clicks
