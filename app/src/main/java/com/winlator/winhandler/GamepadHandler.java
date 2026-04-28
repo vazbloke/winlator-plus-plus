@@ -121,7 +121,13 @@ public class GamepadHandler {
             if (clientIndex == -1) {
                 gamepadClients.add((client = new GamepadClient(port, processId, isXInput)));
             }
-            else client = gamepadClients.get(clientIndex);
+            else {
+                client = gamepadClients.get(clientIndex);
+                // If the processId changed for the same port, update it
+                if (client.processId != processId) {
+                    gamepadClients.set(clientIndex, (client = new GamepadClient(port, processId, isXInput)));
+                }
+            }
             client.updatedOnce = updatedOnce;
 
             for (byte i = 0; i < GAMEPAD_MAX_COUNT; i++) client.enabledSlots[i] = winHandler.receiveData.get() == 1;

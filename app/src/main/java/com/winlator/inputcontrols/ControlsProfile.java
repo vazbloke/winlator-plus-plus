@@ -32,9 +32,15 @@ public class ControlsProfile implements Comparable<ControlsProfile>, GamepadSlot
     private GamepadState gamepadState;
     private GamepadVibration gamepadVibration;
 
+    private java.io.File portableFile = null;
+
     public ControlsProfile(Context context, int id) {
         this.context = context;
         this.id = id;
+    }
+
+    public void setPortableFile(java.io.File file) {
+        this.portableFile = file;
     }
 
     @Override
@@ -118,7 +124,8 @@ public class ControlsProfile implements Comparable<ControlsProfile>, GamepadSlot
     }
 
     public void save() {
-        File file = getProfileFile(context, id);
+        // If a portable file is set, write to it. Otherwise, use the standard SQLite directory.
+        File file = portableFile != null ? portableFile : getProfileFile(context, id);
 
         try {
             JSONObject data = new JSONObject();
@@ -185,7 +192,7 @@ public class ControlsProfile implements Comparable<ControlsProfile>, GamepadSlot
         controllers.clear();
         controllersLoaded = false;
 
-        File file = getProfileFile(context, id);
+        File file = portableFile != null ? portableFile : getProfileFile(context, id);
         if (!file.isFile()) return controllers;
 
         try {
@@ -222,7 +229,7 @@ public class ControlsProfile implements Comparable<ControlsProfile>, GamepadSlot
         elementsLoaded = false;
         virtualGamepad = false;
 
-        File file = getProfileFile(context, id);
+        File file = portableFile != null ? portableFile : getProfileFile(context, id);
         if (!file.isFile()) return;
 
         try {

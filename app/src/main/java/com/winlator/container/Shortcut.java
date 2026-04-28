@@ -65,6 +65,7 @@ public class Shortcut {
                             }
                         }
                         if (key.equals("StartupWMClass")) wmClass = value;
+                        if (key.startsWith("X-Winlator-")) putExtra(key, value);
                     }
                     else if (section.equals("Extra Data")) {
                         try {
@@ -87,6 +88,10 @@ public class Shortcut {
             this.path = path;
             Container.checkObsoleteOrMissingProperties(extraData);
         }
+    }
+
+    public boolean isPortable() {
+        return getExtra("Portable", "f").equals("t") || getExtra("Portable", "false").equalsIgnoreCase("true");
     }
 
     public String getExtra(String name) {
@@ -152,4 +157,5 @@ public class Shortcut {
             }
         }
     }
+
 }

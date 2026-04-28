@@ -136,6 +136,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
     private Win32AppWorkarounds win32AppWorkarounds;
     private String screenEffectProfile;
 
+    // ADD THIS LINE
+    private ControlsProfile portableProfile;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         AppUtils.setActivityTheme(this);
@@ -170,13 +173,53 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
             int containerId = getIntentContainerId(getIntent());
 
-            container = containerManager.getContainerById(containerId);
-            if (container == null) {
-                finish();
-                return;
-            }
-            containerManager.activateContainer(container);
+            // --- PORTABLE .WC / .JSON CONTAINER HIJACK ---
+            String containerFilename = shortcut != null ? shortcut.getExtra("X-Winlator-ContainerFile", "") : "";
+            
+            if (shortcut != null && !containerFilename.isEmpty()) {
+                String gameDir = shortcut.file.getParent();
+                File containerFile = new File(gameDir, containerFilename);
 
+                if (!containerFile.exists()) {
+                    throw new IllegalStateException("Portable container config not found: " + containerFile.getAbsolutePath());
+                }
+
+                try {
+                    // 1. Read the raw database JSON dump
+                    String jsonContent = FileUtils.readString(containerFile);
+                    JSONObject containerData = new JSONObject(jsonContent);
+
+                    // 2. Instantiate a volatile container and natively load all settings
+                    container = new Container(9999);
+                    container.loadData(containerData); 
+                    
+                    // 3. CRITICAL PORTABILITY OVERRIDES
+                    container.setName("Ghost_" + container.getName());
+                    container.setRootDir(new File(gameDir));
+
+                    // Force the WINEPREFIX to the portable directory, overriding whatever was in the JSON
+                    String portablePrefix = gameDir + "/.wine";
+                    new java.io.File(portablePrefix).mkdirs();
+
+                    com.winlator.core.EnvVars customVars = new com.winlator.core.EnvVars(container.getEnvVars());
+                    customVars.put("WINEPREFIX", portablePrefix);
+                    container.setEnvVars(customVars.toString());
+
+                } catch (JSONException e) {
+                    throw new RuntimeException("Failed to parse portable container file: " + containerFilename, e);
+                }
+            } 
+            else {
+                // Standard Winlator Database Load
+                container = containerManager.getContainerById(containerId);
+                if (container == null) {
+                    finish();
+                    return;
+                }
+                containerManager.activateContainer(container);
+            }
+            // --- END HIJACK ---
+            
             boolean wineprefixNeedsUpdate = container.getExtra("wineprefixNeedsUpdate").equals("t");
             if (wineprefixNeedsUpdate) {
                 preloaderDialog.show(R.string.updating_system_files);
@@ -227,6 +270,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
                 String preferredInputApi = shortcut.getExtra("preferredInputApi");
                 if (!preferredInputApi.isEmpty()) preferredInputApiIdx = Byte.parseByte(preferredInputApi);
+
+                String drives = shortcut.getExtra("drives");
+                if (!drives.isEmpty()) container.setDrives(drives);
 
                 win32AppWorkarounds.applyStartupWorkarounds(!shortcut.wmClass.isEmpty() ? shortcut.wmClass : shortcut.path);
             }
@@ -292,6 +338,41 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         });
 
         setupUI();
+
+        // --- PORTABLE CONTROL PROFILE (.icp) HIJACK ---
+        if (shortcut != null && "true".equals(shortcut.getExtra("X-Winlator-Portable", "false"))) {
+            String icpFilename = shortcut.getExtra("X-Winlator-ControlProfile", "");
+            if (!icpFilename.isEmpty()) {
+                String gameDir = shortcut.file.getParent();
+                File icpFile = new File(gameDir, icpFilename);
+                if (icpFile.exists()) {
+                    try {
+                        String jsonContent = FileUtils.readString(icpFile);
+                        JSONObject jsonObject = new JSONObject(jsonContent);
+
+                        portableProfile = new ControlsProfile(this, 9999);
+                        portableProfile.setName("[Portable] " + jsonObject.getString("name"));
+                        
+                        // Manually parse the root properties
+                        if (jsonObject.has("cursorSpeed")) {
+                            portableProfile.setCursorSpeed((float)jsonObject.getDouble("cursorSpeed"));
+                        }
+                        if (jsonObject.has("disableMouseInput")) {
+                            portableProfile.setDisableMouseInput(jsonObject.getBoolean("disableMouseInput"));
+                        }
+                        
+                        // Tell the profile to read its elements/controllers from the portable game folder
+                        portableProfile.setPortableFile(icpFile);
+
+                        // Apply it to the active view
+                        showInputControls(portableProfile);
+                    } catch (JSONException e) {
+                        android.util.Log.e("PortableWinlator", "Failed to parse .icp profile", e);
+                    }
+                }
+            }
+        }
+        // --- END HIJACK ---
 
         Executors.newSingleThreadExecutor().execute(() -> {
             if (!isGenerateWineprefix()) {
@@ -573,6 +654,12 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         // Force Wine to load Winlator's custom UDP-listening XInput wrapper
         envVars.put("WINEDLLOVERRIDES", "xinput1_3,xinput1_4,xinput9_1_0=n,b");
 
+        if (shortcut != null && shortcut.isPortable()) {
+            String gameDir = FileUtils.getDirname(shortcut.path);
+            String portablePrefix = gameDir + "/.wine";
+            envVars.put("WINEPREFIX", portablePrefix);
+        }
+
         boolean enableWineDebug = preferences.getBoolean("enable_wine_debug", false);
         String wineDebugChannels = preferences.getString("wine_debug_channels", SettingsFragment.DEFAULT_WINE_DEBUG_CHANNELS);
         envVars.put("WINEDEBUG", enableWineDebug && !wineDebugChannels.isEmpty() ? "+"+wineDebugChannels.replace(",", ",+") : "-all");
@@ -709,18 +796,32 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         dialog.setIcon(R.drawable.icon_input_controls);
 
         final Spinner sProfile = dialog.findViewById(R.id.SProfile);
+        final View btSettings = dialog.findViewById(R.id.BTSettings);
+        
+        // DYNAMIC HIJACK: Array to hold DB profiles + our RAM Portable profile
+        final java.util.ArrayList<ControlsProfile> activeProfilesList = new java.util.ArrayList<>();
+
         Runnable loadProfileSpinner = () -> {
-            ArrayList<ControlsProfile> profiles = inputControlsManager.getProfiles(true);
-            ArrayList<String> profileItems = new ArrayList<>();
+            activeProfilesList.clear();
+            
+            // If the portable profile exists for this session, add it at the very top
+            if (portableProfile != null) {
+                activeProfilesList.add(portableProfile);
+            }
+            // Append the rest of the standard SQLite database profiles
+            activeProfilesList.addAll(inputControlsManager.getProfiles(true));
+
+            java.util.ArrayList<String> profileItems = new java.util.ArrayList<>();
             int selectedPosition = 0;
             profileItems.add("-- "+getString(R.string.disabled)+" --");
 
             ControlsProfile currentProfile = inputControlsView.getProfile();
             int currentProfileId = currentProfile != null ? currentProfile.id : 0;
 
-            for (int i = 0; i < profiles.size(); i++) {
-                ControlsProfile profile = profiles.get(i);
+            for (int i = 0; i < activeProfilesList.size(); i++) {
+                ControlsProfile profile = activeProfilesList.get(i);
                 if (profile.id == currentProfileId) selectedPosition = i + 1;
+                
                 profileItems.add(profile.getName());
             }
 
@@ -729,19 +830,39 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         };
         loadProfileSpinner.run();
 
+        // NEW: Listen for spinner changes to dynamically grey out the settings button
+        sProfile.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                int targetId = position > 0 ? activeProfilesList.get(position - 1).id : 0;
+                if (targetId == 9999) {
+                    btSettings.setEnabled(false);
+                    btSettings.setAlpha(0.3f); // Visibly grey it out
+                } else {
+                    btSettings.setEnabled(true);
+                    btSettings.setAlpha(1.0f); // Restore normal appearance
+                }
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+
         final CheckBox cbRelativeMouseMovement = dialog.findViewById(R.id.CBRelativeMouseMovement);
         cbRelativeMouseMovement.setChecked(xServer.isRelativeMouseMovement());
 
         final CheckBox cbShowTouchscreenControls = dialog.findViewById(R.id.CBShowTouchscreenControls);
         cbShowTouchscreenControls.setChecked(inputControlsView.isShowTouchscreenControls());
 
-        dialog.findViewById(R.id.BTSettings).setOnClickListener((v) -> {
+        btSettings.setOnClickListener((v) -> {
             int position = sProfile.getSelectedItemPosition();
+            int targetId = position > 0 ? activeProfilesList.get(position - 1).id : 0;
+
             Intent intent = new Intent(this, MainActivity.class);
             intent.putExtra("edit_input_controls", true);
-            intent.putExtra("selected_profile_id", position > 0 ? inputControlsManager.getProfiles().get(position - 1).id : 0);
+            intent.putExtra("selected_profile_id", targetId);
             editInputControlsCallback = () -> {
-                int selectedProfileId = position > 0 ? inputControlsManager.getProfiles().get(position - 1).id : 0;
+                int selectedProfileId = targetId;
                 inputControlsManager.loadProfiles(true);
 
                 if (selectedProfileId == 0 && InputControlsManager.previouslyInteractedProfileId != 0) {
@@ -766,7 +887,7 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
             inputControlsView.setShowTouchscreenControls(cbShowTouchscreenControls.isChecked());
             int position = sProfile.getSelectedItemPosition();
             if (position > 0) {
-                showInputControls(inputControlsManager.getProfiles().get(position - 1));
+                showInputControls(activeProfilesList.get(position - 1));
             }
             else hideInputControls();
         });
@@ -1047,6 +1168,24 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         String execArgs = "";
 
         if (shortcut != null) {
+            // --- PORTABLE BATCH SCRIPT HIJACK ---
+            String startupScript = shortcut.getExtra("X-Winlator-StartupScript", "");
+            if ("true".equals(shortcut.getExtra("X-Winlator-Portable", "false")) && !startupScript.isEmpty()) {
+                String execDir = FileUtils.getDirname(shortcut.path);
+                String filename = FileUtils.getName(shortcut.path);
+                String extraArgs = shortcut.getExtra("execArgs", "");
+                extraArgs = !extraArgs.isEmpty() ? " " + extraArgs : "";
+
+                // Format for winhandler.exe: /dir "C:\Path\To\Game" cmd.exe /c ""startup.bat" && "Game.exe" args"
+                cmdArgs = "/dir " + StringUtils.escapeDOSPath(execDir) + " cmd.exe /c \"\"" + startupScript + "\" && \"" + filename + "\"" + extraArgs + "\"";
+                
+                if (overrideEnvVars != null && overrideEnvVars.has("EXTRA_EXEC_ARGS")) {
+                    cmdArgs += " " + overrideEnvVars.get("EXTRA_EXEC_ARGS");
+                    overrideEnvVars.remove("EXTRA_EXEC_ARGS");
+                }
+                return "C:\\windows\\winhandler.exe " + cmdArgs;
+            }
+            // --- END HIJACK ---
             execArgs = shortcut.getExtra("execArgs");
             execArgs = !execArgs.isEmpty() ? " "+execArgs : "";
 
