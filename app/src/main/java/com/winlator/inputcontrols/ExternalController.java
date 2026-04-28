@@ -246,8 +246,9 @@ public class ExternalController implements GamepadSlot {
     public static boolean isGameController(InputDevice device) {
         if (device == null) return false;
         int sources = device.getSources();
+        // Exclude devices with SOURCE_MOUSE from being considered controllers
         return !device.isVirtual() && ((sources & InputDevice.SOURCE_GAMEPAD) == InputDevice.SOURCE_GAMEPAD ||
-               (sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK);
+                ((sources & InputDevice.SOURCE_JOYSTICK) == InputDevice.SOURCE_JOYSTICK && (sources & InputDevice.SOURCE_MOUSE) == 0));
     }
 
     public static float getCenteredAxis(MotionEvent event, int axis, int historyPos) {

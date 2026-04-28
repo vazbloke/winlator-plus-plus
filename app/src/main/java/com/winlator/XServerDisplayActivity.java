@@ -570,6 +570,9 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
         envVars.put("WINEPREFIX", rootPath+RootFS.WINEPREFIX);
         envVars.put("WINE_DO_NOT_CREATE_DXGI_DEVICE_MANAGER", "1");
 
+        // Force Wine to load Winlator's custom UDP-listening XInput wrapper
+        envVars.put("WINEDLLOVERRIDES", "xinput1_3,xinput1_4,xinput9_1_0=n,b");
+
         boolean enableWineDebug = preferences.getBoolean("enable_wine_debug", false);
         String wineDebugChannels = preferences.getString("wine_debug_channels", SettingsFragment.DEFAULT_WINE_DEBUG_CHANNELS);
         envVars.put("WINEDEBUG", enableWineDebug && !wineDebugChannels.isEmpty() ? "+"+wineDebugChannels.replace(",", ",+") : "-all");
@@ -883,13 +886,18 @@ public class XServerDisplayActivity extends AppCompatActivity implements Navigat
 
     @Override
     public boolean dispatchGenericMotionEvent(MotionEvent event) {
-        // 1. inputControlsView.onGenericMotionEvent checks your custom mappings FIRST.
-        // 2. If it is NOT mapped, it passes to winHandler (Raw XInput).
-        // 3. If winHandler doesn't want it, it passes to the touchpad view.
-        return !inputControlsView.onGenericMotionEvent(event) && 
-               !winHandler.onGenericMotionEvent(event) && 
-               !touchpadView.onExternalMouseEvent(event) && 
-               super.dispatchGenericMotionEvent(event);
+        // Evaluate all handlers independently so nobody gets skipped
+        boolean handledByControls = inputControlsView.onGenericMotionEvent(event);
+        boolean handledByWin = winHandler.onGenericMotionEvent(event);
+        boolean handledByTouch = touchpadView.onExternalMouseEvent(event);
+
+        // If ANY of them consumed the event, return true to tell the OS we handled it
+        if (handledByControls || handledByWin || handledByTouch) {
+            return true;
+        }
+
+        // Otherwise, fall back to default OS behavior
+        return super.dispatchGenericMotionEvent(event);
     }
 
     @Override

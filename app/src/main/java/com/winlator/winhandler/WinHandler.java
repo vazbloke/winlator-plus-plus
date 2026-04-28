@@ -390,14 +390,11 @@ public class WinHandler {
     }
 
     public void start() {
+        // Force the InetAddress to the IPv4 loopback
         try {
-            localhost = InetAddress.getLocalHost();
-        }
-        catch (UnknownHostException e) {
-            try {
-                localhost = InetAddress.getByName("127.0.0.1");
-            }
-            catch (UnknownHostException ex) {}
+            localhost = InetAddress.getByName("127.0.0.1");
+        } catch (UnknownHostException e) {
+            // Fallback just in case, though 127.0.0.1 will always resolve
         }
 
         running = true;
@@ -406,7 +403,8 @@ public class WinHandler {
             try {
                 socket = new DatagramSocket(null);
                 socket.setReuseAddress(true);
-                socket.bind(new InetSocketAddress((InetAddress)null, SERVER_PORT));
+                // Bind explicitly to the IPv4 localhost we just defined
+                socket.bind(new InetSocketAddress(localhost, SERVER_PORT));
 
                 while (running) {
                     socket.receive(receivePacket);

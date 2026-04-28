@@ -26,6 +26,7 @@ import com.winlator.inputcontrols.GamepadState;
 import com.winlator.math.Mathf;
 import com.winlator.winhandler.WinHandler;
 import com.winlator.xserver.Pointer;
+import com.winlator.xserver.XKeycode;
 import com.winlator.xserver.XServer;
 
 import java.io.IOException;
@@ -33,6 +34,13 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Vibrator;
+import android.os.VibrationEffect;
+import android.os.Build;
+import android.content.Context;
 
 public class InputControlsView extends View {
     public static final float DEFAULT_OVERLAY_OPACITY = 0.4f;
@@ -70,6 +78,67 @@ public class InputControlsView extends View {
 
     // Tracks if an axis is resting (0), pushed negative (-1), or positive (1)
     private final byte[] activeAxisStates = new byte[64];
+    private final Handler startButtonHandler = new Handler(Looper.getMainLooper());
+
+    private final Runnable altF4Runnable = () -> {
+        // 1. Vibrate
+        Vibrator vibrator = (Vibrator) getContext().getSystemService(Context.VIBRATOR_SERVICE);
+        if (vibrator != null && vibrator.hasVibrator()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(75, VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                vibrator.vibrate(75);
+            }
+        }
+
+        // 2. Inject ALT+F4 Down
+        if (xServer != null) {
+            xServer.injectKeyPress(XKeycode.KEY_ALT_L); // Alt Down
+            xServer.injectKeyPress(XKeycode.KEY_F4);    // F4 Down
+
+            // 3. Asynchronously release the keys 100ms later
+            startButtonHandler.postDelayed(() -> {
+                if (xServer != null) {
+                    xServer.injectKeyRelease(XKeycode.KEY_F4);    // F4 Up
+                    xServer.injectKeyRelease(XKeycode.KEY_ALT_L); // Alt Up
+                }
+            }, 100);
+        }
+    };
+
+    private final Runnable forceCloseRunnable = () -> {
+        // 1. Distinct, longer haptic feedback for the "kill"
+        android.os.Vibrator vibrator = (android.os.Vibrator) getContext().getSystemService(android.content.Context.VIBRATOR_SERVICE);
+        if (vibrator != null && vibrator.hasVibrator()) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                vibrator.vibrate(android.os.VibrationEffect.createOneShot(150, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                vibrator.vibrate(150);
+            }
+        }
+
+        // 2. Kill executables, strictly bypassing BOTH Wine system names and paths
+        new Thread(() -> {
+            try {
+                // The regex now protects explorer, critical services, and the Windows C: drive paths.
+                String safeKillScript = 
+                    "for p in /proc/[0-9]*; do " +
+                        "cmd=$(cat $p/cmdline 2>/dev/null | tr '\\0' ' '); " +
+                        "if echo \"$cmd\" | grep -i '\\.exe' > /dev/null; then " +
+                            // If the command does NOT contain explorer, services, system paths, etc.
+                            "if ! echo \"$cmd\" | grep -iqE 'explorer|services|winedevice|wineboot|svchost|plugplay|rpcss|conhost|c:[/\\\\]windows|system32|syswow64'; then " +
+                                "kill -9 $(basename $p); " +
+                            "fi; " +
+                        "fi; " +
+                    "done";
+
+                String[] shellCommand = { "sh", "-c", safeKillScript };
+                Runtime.getRuntime().exec(shellCommand);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+    };
 
     public InputControlsView(Context context) {
         super(context);
@@ -656,49 +725,57 @@ public class InputControlsView extends View {
     }
 
     public boolean onKeyEvent(KeyEvent event) {
+        int code = event.getKeyCode();
+        int action = event.getAction();
+
+        // 1. UNIVERSAL START TIMER (Runs regardless of profile state)
+        if (code == KeyEvent.KEYCODE_BUTTON_START) {
+            if (action == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                // Queue the cascading actions
+                startButtonHandler.postDelayed(altF4Runnable, 600);        // Alt-F4
+                startButtonHandler.postDelayed(forceCloseRunnable, 1000);  // /proc kill script
+            } else if (action == KeyEvent.ACTION_UP) {
+                // Cancel timers if released early
+                startButtonHandler.removeCallbacks(altF4Runnable);
+                startButtonHandler.removeCallbacks(forceCloseRunnable);
+            }
+            // Let the event cascade down. DO NOT return here.
+        }
+
+        // 2. PROFILE PROCESSING
         if (profile != null && event.getRepeatCount() == 0) {
             
-            // 1. Check if the device sending the key is our active Gamepad
             ExternalController controller = profile.getController(event.getDeviceId());
             
             if (controller != null) {
-                int code = event.getKeyCode();
-
-
-                // Let shared Odin system keys pass
+                // Let shared system keys pass
                 if (code == KeyEvent.KEYCODE_BACK ||
                     code == KeyEvent.KEYCODE_VOLUME_UP ||
                     code == KeyEvent.KEYCODE_VOLUME_DOWN) {
                     return false; 
                 }
 
-                // THE RESUME SHIELD: Ignore inputs if the screen is still transitioning
+                // The Resume Shield
                 if (!readyToDraw) return true;
 
                 // Process the mapped Gamepad button
                 ExternalControllerBinding controllerBinding = controller.getControllerBinding(code);
                 if (controllerBinding != null) {
-                    int action = event.getAction();
-
                     if (action == KeyEvent.ACTION_DOWN) {
                         handleInputEvent(controllerBinding.getBinding(), true);
                     }
                     else if (action == KeyEvent.ACTION_UP) {
                         handleInputEvent(controllerBinding.getBinding(), false);
                     }
-                    
-                    // Swallow the mapped gamepad key
-                    return true;
+                    return true; // Swallow mapped keys
                 }
                 
-                // If it's an unmapped gamepad key, STILL swallow it so Android doesn't 
-                // synthesize ghost "Enter" or "Spacebar" presses in the background.
-                return true;
+                return true; // Swallow unmapped keys IF a profile is active
             }
         }
 
-        // 2. THE BLACKLIST FALLBACK 
-        // We return false. The input goes straight to Winlator's XServer keyboard handler!
+        // 3. THE NATIVE FALLBACK 
+        // Executes if profile == null, sending raw input to Winlator's GamepadHandler
         return false;
     }
 
@@ -842,3 +919,6 @@ public class InputControlsView extends View {
         return icons[id];
     }
 }
+
+
+
